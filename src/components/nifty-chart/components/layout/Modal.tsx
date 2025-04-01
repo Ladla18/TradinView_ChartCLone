@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useEffect, useRef } from "react";
 
 interface ModalProps {
   isOpen: boolean;
@@ -59,83 +59,17 @@ const Modal: React.FC<ModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: "rgba(0, 0, 0, 0.6)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 1000,
-        opacity: 1,
-        transition: "opacity 0.2s ease-in-out",
-        backdropFilter: "blur(3px)",
-      }}
-    >
+    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[1000] backdrop-blur-sm transition-opacity duration-200">
       <div
         ref={modalRef}
-        style={{
-          backgroundColor: "white",
-          borderRadius: "12px",
-          padding: "24px",
-          maxWidth,
-          width: "100%",
-          maxHeight: "90vh",
-          overflow: "auto",
-          boxShadow: "0 8px 30px rgba(0, 0, 0, 0.2)",
-          transform: "translateY(0)",
-          transition: "transform 0.3s ease-out",
-          animation: "modalFadeIn 0.3s",
-        }}
+        className="bg-white rounded-xl p-6 w-full overflow-auto shadow-lg animate-modalFadeIn"
+        style={{ maxWidth, maxHeight: "90vh" }}
       >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "16px",
-            borderBottom: "1px solid #eee",
-            paddingBottom: "16px",
-          }}
-        >
-          <h2
-            style={{
-              margin: 0,
-              fontSize: "1.4rem",
-              fontWeight: 600,
-              color: "#333",
-            }}
-          >
-            {title}
-          </h2>
+        <div className="flex justify-between items-center mb-4 border-b border-gray-100 pb-4">
+          <h2 className="m-0 text-xl font-semibold text-gray-800">{title}</h2>
           <button
             onClick={onClose}
-            style={{
-              background: "#f5f5f5",
-              border: "none",
-              borderRadius: "50%",
-              width: "32px",
-              height: "32px",
-              fontSize: "1.2rem",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "pointer",
-              color: "#666",
-              transition: "all 0.2s",
-            }}
-            onMouseOver={(e) => {
-              e.currentTarget.style.background = "#eee";
-              e.currentTarget.style.color = "#333";
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.background = "#f5f5f5";
-              e.currentTarget.style.color = "#666";
-            }}
+            className="bg-gray-100 rounded-full w-8 h-8 text-lg flex items-center justify-center cursor-pointer text-gray-500 transition-all duration-200 hover:bg-gray-200 hover:text-gray-700"
           >
             &times;
           </button>
@@ -153,6 +87,9 @@ const Modal: React.FC<ModalProps> = ({
               opacity: 1;
               transform: translateY(0);
             }
+          }
+          .animate-modalFadeIn {
+            animation: modalFadeIn 0.3s;
           }
         `}
       </style>

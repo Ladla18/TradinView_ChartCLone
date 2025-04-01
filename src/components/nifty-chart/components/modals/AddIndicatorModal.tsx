@@ -32,6 +32,14 @@ interface ApiIndicator {
   position: "on_chart" | "below";
 }
 
+// Create a variable to store all indicators added so far
+let allAddedIndicators: Array<{
+  name: string;
+  type: string;
+  source: string;
+  parameters: Record<string, any>;
+}> = [];
+
 const AddIndicatorModal: React.FC<AddIndicatorModalProps> = ({
   onClose,
   onAddIndicator,
@@ -281,6 +289,41 @@ const AddIndicatorModal: React.FC<AddIndicatorModalProps> = ({
       // For backward compatibility
       period: parameterValues["length"] || parameterValues["period"] || 14,
     };
+
+    // Create new indicator for the payload
+    const newIndicator = {
+      name: indicatorName,
+      type: indicatorType,
+      source: parameterValues["source"] || "close",
+      parameters: { ...parameterValues },
+    };
+
+    // Check if we're editing an existing indicator
+    if (existingIndicator) {
+      // Update the existing indicator in the array
+      const existingIndex = allAddedIndicators.findIndex(
+        (ind) => ind.name === existingIndicator.name
+      );
+      if (existingIndex >= 0) {
+        allAddedIndicators[existingIndex] = newIndicator;
+      } else {
+        // If not found, add it
+        allAddedIndicators.push(newIndicator);
+      }
+    } else {
+      // Add the new indicator to our collection
+      allAddedIndicators.push(newIndicator);
+    }
+
+    // Create payload with all indicators
+    const payload = {
+      symbol: "3045", // hardcoded
+      timeframe: "1m", // hardcoded
+      indicators: [...allAddedIndicators],
+    };
+
+    // Log the payload
+    console.log("Indicator Payload:", payload);
 
     onAddIndicator(indicator);
     onClose();
