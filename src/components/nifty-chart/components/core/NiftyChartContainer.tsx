@@ -10,14 +10,9 @@ import {
 import IndicatorSelector from "../indicators/IndicatorSelector";
 import IndicatorCharts from "../indicators/IndicatorCharts";
 import { twMerge } from "tailwind-merge";
-import { AlertCircle, RefreshCw } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import AddIndicatorModal from "../modals/AddIndicatorModal";
-
-interface ProcessedIndicator {
-  indicator: string;
-  position: "on_chart" | "below";
-  data: Record<string, number[]>;
-}
+import ChartControls from "./ChartControls";
 
 interface NiftyChartContainerProps {
   initialOptions?: NiftyChartOptions;
@@ -226,117 +221,19 @@ const NiftyChartContainer: React.FC<NiftyChartContainerProps> = ({
       )}
 
       {/* Chart controls */}
-      <div className="mb-3 flex justify-between py-2.5">
-        <div className="flex space-x-2">
-          <button
-            onClick={toggleVolume}
-            className="rounded border border-gray-300 bg-gray-50 px-3 py-2 hover:bg-gray-100"
-          >
-            {options.showVolume ? "Hide Volume" : "Show Volume"}
-          </button>
-
-          <button
-            onClick={toggleTheme}
-            className="rounded border border-gray-300 bg-gray-50 px-3 py-2 hover:bg-gray-100"
-          >
-            {options.theme === "dark" ? "Light Theme" : "Dark Theme"}
-          </button>
-
-          <button
-            onClick={toggleIndicatorsModal}
-            className={`rounded border px-3 py-2 ${
-              selectedIndicators.length > 0
-                ? "border-green-500 bg-green-500 text-white hover:bg-green-600"
-                : "border-gray-300 bg-gray-50 hover:bg-gray-100"
-            }`}
-          >
-            Indicators{" "}
-            {selectedIndicators.length > 0 && `(${selectedIndicators.length})`}
-          </button>
-
-          <button
-            onClick={toggleAddIndicatorModal}
-            className="rounded border border-blue-500 bg-blue-500 px-3 py-2 text-white hover:bg-blue-600"
-          >
-            Add Custom Indicator
-          </button>
-
-          {selectedIndicators.length > 0 && (
-            <button
-              onClick={handleCalculateIndicators}
-              disabled={isCalculating}
-              className="rounded bg-green-500 px-3 py-2 font-bold text-white hover:bg-green-600 disabled:opacity-50"
-            >
-              {isCalculating ? "Calculating..." : "Calculate Indicators"}
-            </button>
-          )}
-
-          <button
-            onClick={refetch}
-            className="flex items-center rounded border border-gray-300 bg-gray-50 px-3 py-2 hover:bg-gray-100"
-          >
-            <RefreshCw className="mr-1.5 h-4 w-4" />
-            Refresh Data
-          </button>
-        </div>
-
-        <div className="flex space-x-2">
-          <button
-            onClick={() => changeTimeframe(7)}
-            className={`rounded border px-3 py-2 ${
-              timeframe === 7
-                ? "border-gray-400 bg-gray-200"
-                : "border-gray-300 bg-gray-50 hover:bg-gray-100"
-            }`}
-          >
-            7D
-          </button>
-
-          <button
-            onClick={() => changeTimeframe(30)}
-            className={`rounded border px-3 py-2 ${
-              timeframe === 30
-                ? "border-gray-400 bg-gray-200"
-                : "border-gray-300 bg-gray-50 hover:bg-gray-100"
-            }`}
-          >
-            1M
-          </button>
-
-          <button
-            onClick={() => changeTimeframe(90)}
-            className={`rounded border px-3 py-2 ${
-              timeframe === 90
-                ? "border-gray-400 bg-gray-200"
-                : "border-gray-300 bg-gray-50 hover:bg-gray-100"
-            }`}
-          >
-            3M
-          </button>
-
-          <button
-            onClick={() => changeTimeframe(180)}
-            className={`rounded border px-3 py-2 ${
-              timeframe === 180
-                ? "border-gray-400 bg-gray-200"
-                : "border-gray-300 bg-gray-50 hover:bg-gray-100"
-            }`}
-          >
-            6M
-          </button>
-
-          <button
-            onClick={() => changeTimeframe(365)}
-            className={`rounded border px-3 py-2 ${
-              timeframe === 365
-                ? "border-gray-400 bg-gray-200"
-                : "border-gray-300 bg-gray-50 hover:bg-gray-100"
-            }`}
-          >
-            1Y
-          </button>
-        </div>
-      </div>
+      <ChartControls
+        options={options}
+        selectedIndicators={selectedIndicators}
+        isCalculating={isCalculating}
+        timeframe={timeframe}
+        toggleVolume={toggleVolume}
+        toggleTheme={toggleTheme}
+        toggleIndicatorsModal={toggleIndicatorsModal}
+        toggleAddIndicatorModal={toggleAddIndicatorModal}
+        handleCalculateIndicators={handleCalculateIndicators}
+        refetch={refetch}
+        changeTimeframe={changeTimeframe}
+      />
 
       {/* The chart itself */}
       <NiftyChart data={data} options={options} loading={chartLoading} />
