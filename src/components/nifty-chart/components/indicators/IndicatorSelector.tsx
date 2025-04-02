@@ -8,12 +8,6 @@ import Modal from "../layout/Modal";
 import {
   Search,
   Check,
-  X,
-  AlertCircle,
-  Plus,
-  Activity,
-  ArrowUp,
-  ArrowDown,
 } from "lucide-react";
 
 interface IndicatorSelectorProps {

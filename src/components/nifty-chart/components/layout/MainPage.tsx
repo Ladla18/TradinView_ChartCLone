@@ -1,15 +1,27 @@
 import { useState, useRef, useEffect } from "react";
 import NiftyChartContainer from "../core/NiftyChartContainer";
 import StrategyAssistant from "../strategy/StrategyAssistant";
+import { IndicatorCalculationResult } from "../../types";
+
+
 
 export default function MainPage() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [leftPanelWidth, setLeftPanelWidth] = useState(70);
   const [isDragging, setIsDragging] = useState(false);
+  const [indicatorData, setIndicatorData] = useState<
+    IndicatorCalculationResult[]
+  >([]);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const toggleTheme = () => {
     setTheme((prevTheme) => (prevTheme === "light" ? "dark" : "light"));
+  };
+
+  // Handle indicator data updates from StrategyAssistant
+  const handleIndicatorDataUpdate = (data: IndicatorCalculationResult[]) => {
+    console.log("MainPage received indicator data:", data);
+    setIndicatorData(data);
   };
 
   // Set up dragging handlers
@@ -82,6 +94,7 @@ export default function MainPage() {
           days={30}
           useMockData={false}
           apiUrl="https://dev.api.tusta.co/charts/get_csv_data"
+          calculationResults={indicatorData}
         />
       </div>
 
@@ -138,7 +151,7 @@ export default function MainPage() {
         }`}
         style={{ width: `${100 - leftPanelWidth}%` }}
       >
-        <StrategyAssistant />
+        <StrategyAssistant onIndicatorDataUpdate={handleIndicatorDataUpdate} />
       </div>
     </div>
   );

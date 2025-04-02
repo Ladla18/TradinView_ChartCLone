@@ -59,10 +59,10 @@ const Modal: React.FC<ModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[1000] backdrop-blur-sm transition-opacity duration-200">
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[1000] backdrop-blur-md transition-all duration-300">
       <div
         ref={modalRef}
-        className="bg-white rounded-xl p-6 w-full overflow-auto shadow-lg animate-modalFadeIn"
+        className="bg-white rounded-xl p-6 w-full overflow-auto shadow-2xl animate-modalFadeIn"
         style={{ maxWidth, maxHeight: "90vh" }}
       >
         <div className="flex justify-between items-center mb-4 border-b border-gray-100 pb-4">

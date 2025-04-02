@@ -2,11 +2,21 @@ import React, { useState } from "react";
 import NiftyChart from "./NiftyChart";
 import { useNiftyData } from "../../hooks/useNiftyData";
 import { useIndicators } from "../../hooks/useIndicators";
-import { NiftyChartOptions, NiftyDataPoint } from "../../types/index";
+import {
+  NiftyChartOptions,
+  NiftyDataPoint,
+  IndicatorCalculationResult,
+} from "../../types/index";
 import IndicatorSelector from "../indicators/IndicatorSelector";
 import IndicatorCharts from "../indicators/IndicatorCharts";
 import { twMerge } from "tailwind-merge";
 import { AlertCircle, RefreshCw } from "lucide-react";
+
+interface ProcessedIndicator {
+  indicator: string;
+  position: "on_chart" | "below";
+  data: Record<string, number[]>;
+}
 
 interface NiftyChartContainerProps {
   initialOptions?: NiftyChartOptions;
@@ -15,6 +25,7 @@ interface NiftyChartContainerProps {
   style?: React.CSSProperties;
   useMockData?: boolean;
   apiUrl?: string;
+  calculationResults?: IndicatorCalculationResult[];
 }
 
 const NiftyChartContainer: React.FC<NiftyChartContainerProps> = ({
@@ -24,6 +35,7 @@ const NiftyChartContainer: React.FC<NiftyChartContainerProps> = ({
   style = {},
   useMockData = false,
   apiUrl = "https://dev.api.tusta.co/charts/get_csv_data",
+  calculationResults = [],
 }) => {
   const [options, setOptions] = useState<NiftyChartOptions>(initialOptions);
   const [timeframe, setTimeframe] = useState<number>(days);
@@ -50,16 +62,22 @@ const NiftyChartContainer: React.FC<NiftyChartContainerProps> = ({
     updateIndicatorParameter,
     toggleIndicator,
     calculateSelectedIndicators,
-    calculationResults,
+    calculationResults: internalCalculationResults,
     isCalculating,
   } = useIndicators();
 
+  // Use external calculationResults if provided, otherwise use internal ones
+  const finalCalculationResults =
+    calculationResults && calculationResults.length > 0
+      ? calculationResults
+      : internalCalculationResults;
+
   // Debug when calculation results change
   React.useEffect(() => {
-    if (calculationResults.length > 0) {
-      console.log("Calculation results updated:", calculationResults);
+    if (finalCalculationResults.length > 0) {
+      console.log("Calculation results updated:", finalCalculationResults);
     }
-  }, [calculationResults]);
+  }, [finalCalculationResults]);
 
   // Update the options when selected indicators change
   React.useEffect(() => {
@@ -73,9 +91,9 @@ const NiftyChartContainer: React.FC<NiftyChartContainerProps> = ({
   React.useEffect(() => {
     setOptions((prev: NiftyChartOptions) => ({
       ...prev,
-      calculationResults,
+      calculationResults: finalCalculationResults,
     }));
-  }, [calculationResults]);
+  }, [finalCalculationResults]);
 
   // Function to toggle volume display
   const toggleVolume = () => {
@@ -263,9 +281,9 @@ const NiftyChartContainer: React.FC<NiftyChartContainerProps> = ({
       <NiftyChart data={data} options={options} loading={chartLoading} />
 
       {/* Indicator charts below the main chart */}
-      {calculationResults.length > 0 && (
+      {finalCalculationResults.length > 0 && (
         <IndicatorCharts
-          calculationResults={calculationResults}
+          calculationResults={finalCalculationResults}
           indicatorSchema={indicatorSchema}
           theme={options.theme}
           dates={data.map((item: NiftyDataPoint) => item.date)}

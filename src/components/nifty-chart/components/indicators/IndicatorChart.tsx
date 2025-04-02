@@ -1,6 +1,5 @@
 import React from "react";
 import ReactECharts from "echarts-for-react";
-import { IndicatorCalculationResult, IndicatorSchema } from "../../types/index";
 
 interface IndicatorChartProps {
   indicator: string;
@@ -33,20 +32,19 @@ const IndicatorChart: React.FC<IndicatorChartProps> = ({
   }
 
   // Base text color based on theme
-  const textColor = theme === "dark" ? "#ddd" : "#333";
-  const backgroundColor = theme === "dark" ? "#333" : "#f5f5f5";
+  const textColor = theme === "dark" ? "#e5e7eb" : "#1f2937";
 
-  // Colors for different lines
+  // Colors for different lines using Tailwind colors
   const colors = [
-    "#2196f3",
-    "#f44336",
-    "#4caf50",
-    "#ff9800",
-    "#9c27b0",
-    "#795548",
-    "#607d8b",
-    "#e91e63",
-    "#673ab7",
+    "#3b82f6", // blue-500
+    "#ef4444", // red-500
+    "#22c55e", // green-500
+    "#f97316", // orange-500
+    "#a855f7", // purple-500
+    "#795548", // brown
+    "#64748b", // slate-500
+    "#ec4899", // pink-500
+    "#7c3aed", // violet-600
   ];
 
   // Check if we have timestamps in the data
@@ -63,11 +61,7 @@ const IndicatorChart: React.FC<IndicatorChartProps> = ({
   });
 
   // Ensure we have valid data to display
-  if (
-    (hasTimestamps && (!data.value || data.value.length === 0)) ||
-    (!hasTimestamps &&
-      Object.keys(data).every((key) => !data[key] || data[key].length === 0))
-  ) {
+  if (Object.keys(data).every((key) => !data[key] || data[key].length === 0)) {
     console.log("No valid data to display for indicator:", indicator);
     return null;
   }
@@ -76,18 +70,28 @@ const IndicatorChart: React.FC<IndicatorChartProps> = ({
   const series = Object.entries(data)
     .map(([field, values], index) => {
       // Skip timestamps field as it's used for x-axis
-      if (field === "timestamps" || !values || values.length === 0) return null;
+      if (
+        field === "timestamps" ||
+        field === "timestamp" ||
+        !values ||
+        values.length === 0
+      )
+        return null;
 
       // Get the description from the schema if available
       const fieldDescription = schema?.output?.[field]?.description || field;
 
+      console.log(`Creating series for field: ${field}`, {
+        fieldDescription,
+        valuesLength: values.length,
+        firstFewValues: values.slice(0, 5),
+      });
+
       return {
         name: `${fieldDescription}`,
         type: "line",
-        data:
-          hasTimestamps && data.timestamps && values
-            ? data.timestamps.map((time, i) => [time, values[i] || null])
-            : values,
+        // Use simple index-based data points rather than timestamps
+        data: values.map((value, i) => value),
         symbol: "none",
         smooth: true,
         lineStyle: {
@@ -111,23 +115,31 @@ const IndicatorChart: React.FC<IndicatorChartProps> = ({
     tooltip: {
       trigger: "axis",
       backgroundColor:
-        theme === "dark" ? "rgba(50,50,50,0.7)" : "rgba(255,255,255,0.7)",
+        theme === "dark" ? "rgba(31, 41, 55, 0.7)" : "rgba(243, 244, 246, 0.7)",
       borderWidth: 1,
-      borderColor: theme === "dark" ? "#555" : "#ddd",
+      borderColor: theme === "dark" ? "#374151" : "#e5e7eb",
       textStyle: {
         color: textColor,
       },
       formatter: function (params: any) {
-        const date = new Date(params[0].value[0]);
-        const dateStr = date.toLocaleString();
-        let tooltipStr = `<div>${dateStr}</div>`;
+        let tooltipStr = "";
 
         params.forEach((param: any) => {
+          let valueDisplay = "N/A";
+          const value = param.value;
+
+          // Check if value is a number before using toFixed
+          if (value !== null && value !== undefined) {
+            if (typeof value === "number" && !isNaN(value)) {
+              valueDisplay = value.toFixed(2);
+            } else {
+              valueDisplay = String(value);
+            }
+          }
+
           tooltipStr += `<div style="color:${param.color}">
-            <span style="display:inline-block;margin-right:5px;border-radius:10px;width:10px;height:10px;background-color:${
-              param.color
-            }"></span>
-            ${param.seriesName}: ${param.value[1].toFixed(2)}
+            <span style="display:inline-block;margin-right:5px;border-radius:10px;width:10px;height:10px;background-color:${param.color}"></span>
+            ${param.seriesName}: ${valueDisplay}
           </div>`;
         });
 
@@ -136,7 +148,7 @@ const IndicatorChart: React.FC<IndicatorChartProps> = ({
     },
     legend: {
       data: Object.keys(data)
-        .filter((key) => key !== "timestamps")
+        .filter((key) => key !== "timestamps" && key !== "timestamp")
         .map((key) => schema?.output?.[key]?.description || key),
       top: 30,
       textStyle: {
@@ -151,23 +163,12 @@ const IndicatorChart: React.FC<IndicatorChartProps> = ({
       containLabel: true,
     },
     xAxis: {
-      type: hasTimestamps ? "time" : "category",
-      data: !hasTimestamps ? dates : undefined,
+      type: "category",
       boundaryGap: false,
       axisLine: { lineStyle: { color: textColor } },
       axisLabel: {
         color: textColor,
-        formatter: hasTimestamps
-          ? (value: number) => {
-              const date = new Date(value);
-              return `${date.getHours()}:${date
-                .getMinutes()
-                .toString()
-                .padStart(2, "0")}`;
-            }
-          : (value: string) => {
-              return value.slice(5); // Remove year part
-            },
+        show: false, // Hide x-axis labels entirely
       },
       splitLine: { show: false },
     },
@@ -177,7 +178,7 @@ const IndicatorChart: React.FC<IndicatorChartProps> = ({
       axisLabel: { color: textColor },
       splitLine: {
         show: true,
-        lineStyle: { color: theme === "dark" ? "#444" : "#eee" },
+        lineStyle: { color: theme === "dark" ? "#374151" : "#e5e7eb" },
       },
     },
     dataZoom: [
@@ -192,17 +193,13 @@ const IndicatorChart: React.FC<IndicatorChartProps> = ({
 
   return (
     <div
-      style={{
-        marginBottom: "15px",
-        backgroundColor,
-        borderRadius: "4px",
-        padding: "10px",
-        boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
-      }}
+      className={`mb-4 rounded-md p-2.5 shadow-sm ${
+        theme === "dark" ? "bg-gray-800" : "bg-gray-100"
+      }`}
     >
       <ReactECharts
         option={option}
-        style={{ height: "200px", width: "100%" }}
+        className="h-[200px] w-full"
         notMerge={true}
         lazyUpdate={true}
       />

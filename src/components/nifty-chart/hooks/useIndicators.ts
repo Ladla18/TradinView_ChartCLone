@@ -200,11 +200,18 @@ export const useIndicators = ({
               // The API returns an array of objects with timestamp and value
               // We need to transform this into a format our charts can use
 
-              // Transform the data format
-              const transformedData: Record<string, number[]> = {
-                value: [],
-                timestamps: [],
-              };
+              // Initialize the transformed data with timestamps and all output fields from schema
+              const transformedData: Record<string, number[]> = {};
+
+              // Initialize all fields from schema output
+              if (schema.output) {
+                Object.keys(schema.output).forEach((outputField) => {
+                  transformedData[outputField] = [];
+                });
+              }
+
+              // Always include timestamps field
+              transformedData.timestamps = [];
 
               // Handle different response formats
               if (Array.isArray(indicatorData)) {
@@ -214,21 +221,44 @@ export const useIndicators = ({
                 );
                 if (indicatorData.length > 0) {
                   console.log("Sample data item:", indicatorData[0]);
+
+                  // Get all fields from the first data item (excluding timestamp/timestamps)
+                  const dataFields = Object.keys(indicatorData[0]).filter(
+                    (field) => field !== "timestamp" && field !== "timestamps"
+                  );
+
+                  // Initialize any fields present in the data but not in the schema
+                  dataFields.forEach((field) => {
+                    if (!transformedData[field]) {
+                      transformedData[field] = [];
+                    }
+                  });
                 }
 
-                // Extract timestamps and values
+                // Extract timestamps and all available values
                 indicatorData.forEach((item: any) => {
-                  if (item && "timestamp" in item) {
+                  if (item && ("timestamp" in item || "timestamps" in item)) {
+                    // Handle timestamp
+                    const timestamp = item.timestamp || item.timestamps;
                     transformedData.timestamps.push(
-                      new Date(item.timestamp).getTime()
+                      new Date(timestamp).getTime()
                     );
 
-                    // Handle null values
-                    if (item.value === null) {
-                      transformedData.value.push(NaN);
-                    } else {
-                      transformedData.value.push(item.value);
-                    }
+                    // Process all fields except timestamp/timestamps
+                    Object.entries(item).forEach(([field, value]) => {
+                      if (
+                        field !== "timestamp" &&
+                        field !== "timestamps" &&
+                        field in transformedData
+                      ) {
+                        // Handle null values
+                        if (value === null) {
+                          transformedData[field].push(NaN);
+                        } else {
+                          transformedData[field].push(value as number);
+                        }
+                      }
+                    });
                   }
                 });
 
@@ -239,7 +269,8 @@ export const useIndicators = ({
                     data: transformedData,
                   });
                   console.log(
-                    `Successfully processed ${transformedData.timestamps.length} data points for ${indicator.id}`
+                    `Successfully processed ${transformedData.timestamps.length} data points for ${indicator.id} with fields:`,
+                    Object.keys(transformedData)
                   );
                 }
               }

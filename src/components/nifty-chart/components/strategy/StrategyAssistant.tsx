@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AddIndicatorModal, SignalConditionsModal } from "../modals";
 import { PlusCircle, Edit, X, AlertCircle, ChevronRight } from "lucide-react";
+import { IndicatorCalculationResult } from "../../types";
 
 interface SavedIndicator {
   id: string;
@@ -27,7 +28,13 @@ interface ConditionGroup {
   logicalOperator: "AND" | "OR";
 }
 
-const StrategyAssistant = () => {
+interface StrategyAssistantProps {
+  onIndicatorDataUpdate?: (data: IndicatorCalculationResult[]) => void;
+}
+
+const StrategyAssistant: React.FC<StrategyAssistantProps> = ({
+  onIndicatorDataUpdate,
+}) => {
   const [showAddIndicatorModal, setShowAddIndicatorModal] = useState(false);
   const [showEntryConditionsModal, setShowEntryConditionsModal] =
     useState(false);
@@ -37,6 +44,9 @@ const StrategyAssistant = () => {
     useState<SavedIndicator | null>(null);
   const [entryConditions, setEntryConditions] = useState<ConditionGroup[]>([]);
   const [exitConditions, setExitConditions] = useState<ConditionGroup[]>([]);
+  const [processedIndicatorData, setProcessedIndicatorData] = useState<
+    IndicatorCalculationResult[]
+  >([]);
 
   const openAddIndicatorModal = () => {
     setShowAddIndicatorModal(true);
@@ -46,6 +56,13 @@ const StrategyAssistant = () => {
     setShowAddIndicatorModal(false);
     setEditingIndicator(null);
   };
+
+  // Pass processed indicator data to parent component whenever it changes
+  useEffect(() => {
+    if (onIndicatorDataUpdate && processedIndicatorData.length > 0) {
+      onIndicatorDataUpdate(processedIndicatorData);
+    }
+  }, [processedIndicatorData, onIndicatorDataUpdate]);
 
   const handleEditIndicator = (indicator: SavedIndicator) => {
     setEditingIndicator(indicator);
@@ -132,10 +149,22 @@ const StrategyAssistant = () => {
         setSavedIndicators([...savedIndicators, newIndicator]);
       }
 
+      // Store the processed indicator data if available
+      if (indicator.processedData) {
+        setProcessedIndicatorData(indicator.processedData);
+      }
+
       // Close the modal
       closeAddIndicatorModal();
     } catch (error) {
       console.error("Error calculating indicator:", error);
+    }
+  };
+
+  const updateProcessedIndicatorData = (data: IndicatorCalculationResult[]) => {
+    setProcessedIndicatorData(data);
+    if (onIndicatorDataUpdate) {
+      onIndicatorDataUpdate(data);
     }
   };
 
@@ -350,6 +379,7 @@ const StrategyAssistant = () => {
           onClose={closeAddIndicatorModal}
           onAddIndicator={handleAddIndicator}
           existingIndicator={editingIndicator}
+          onProcessedDataUpdate={updateProcessedIndicatorData}
         />
       )}
 

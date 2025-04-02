@@ -1,21 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { X, Info, ChevronDown, AlertCircle, Save, Search } from "lucide-react";
-import { getAllIndicators } from "../../../../services/chartsnifty";
-
-interface AddIndicatorModalProps {
-  onClose: () => void;
-  onAddIndicator: (indicator: any) => void;
-  existingIndicator?: {
-    id: string;
-    name: string;
-    type: string;
-    period: number;
-    chartType: string;
-    candleInterval?: string;
-    field?: string;
-    noOfCandles?: number;
-  } | null;
-}
+import {
+  getAllIndicators,
+  calculateIndicators,
+} from "../../../../services/chartsnifty";
+import { IndicatorCalculationResult } from "../../types";
 
 interface ApiIndicator {
   description: string;
@@ -32,6 +21,22 @@ interface ApiIndicator {
   position: "on_chart" | "below";
 }
 
+interface AddIndicatorModalProps {
+  onClose: () => void;
+  onAddIndicator: (indicator: any) => void;
+  existingIndicator?: {
+    id: string;
+    name: string;
+    type: string;
+    period: number;
+    chartType: string;
+    candleInterval?: string;
+    field?: string;
+    noOfCandles?: number;
+  } | null;
+  onProcessedDataUpdate?: (data: IndicatorCalculationResult[]) => void;
+}
+
 // Create a variable to store all indicators added so far
 let allAddedIndicators: Array<{
   name: string;
@@ -44,6 +49,7 @@ const AddIndicatorModal: React.FC<AddIndicatorModalProps> = ({
   onClose,
   onAddIndicator,
   existingIndicator,
+  onProcessedDataUpdate,
 }) => {
   const [indicatorType, setIndicatorType] = useState(
     existingIndicator?.type || ""
@@ -273,13 +279,13 @@ const AddIndicatorModal: React.FC<AddIndicatorModalProps> = ({
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!indicatorType || !indicatorName) {
       alert("Please fill in all required fields");
       return;
     }
 
-    const indicator = {
+    const indicator: any = {
       type: indicatorType,
       name: indicatorName,
       parameters: parameterValues, // Use all parameter values
@@ -324,6 +330,111 @@ const AddIndicatorModal: React.FC<AddIndicatorModalProps> = ({
 
     // Log the payload
     console.log("Indicator Payload:", payload);
+
+    // Send the payload to the calculateIndicators API
+    try {
+      const response = await calculateIndicators(payload);
+      console.log("Indicator Calculation Response:", response);
+
+      // Process the response to prepare data for charts
+      if (response && response.indicators) {
+        // Get schema for determining indicator positions
+        const processedIndicators: IndicatorCalculationResult[] = [];
+
+        // Process each indicator in the response
+        for (const [indicatorType, indicatorData] of Object.entries(
+          response.indicators
+        )) {
+          // Find the indicator in our schema to get its position
+          const indicatorSchema = allIndicators[indicatorType];
+          if (indicatorSchema) {
+            const position = indicatorSchema.position || "below"; // Default to below if not specified
+
+            // Structure the data in the format expected by IndicatorCharts
+            // The data should be a Record<string, number[]> with keys for each output field
+            const processedData: Record<string, number[]> = {};
+
+            // Check if the data is an array of objects
+            if (Array.isArray(indicatorData)) {
+              // Convert array of objects to record of arrays
+              // Each object in the array becomes a point in the respective output field arrays
+              if (indicatorData.length > 0) {
+                // Initialize arrays for each output field, excluding timestamps
+                const fields = Object.keys(indicatorData[0]).filter(
+                  (field) => field !== "timestamps" && field !== "timestamp"
+                );
+                
+                // Log all available fields in the response
+                console.log(`Indicator ${indicatorType} available fields:`, fields);
+                
+                fields.forEach((field) => {
+                  processedData[field] = [];
+                });
+
+                // Fill the arrays with values, excluding timestamps
+                indicatorData.forEach((dataPoint) => {
+                  fields.forEach((field) => {
+                    processedData[field].push(dataPoint[field]);
+                  });
+                });
+                
+                // Check if all expected output fields from schema are present
+                if (indicatorSchema.output) {
+                  const expectedFields = Object.keys(indicatorSchema.output);
+                  const missingFields = expectedFields.filter(field => !fields.includes(field));
+                  
+                  if (missingFields.length > 0) {
+                    console.warn(`Missing fields in ${indicatorType} data:`, missingFields);
+                  }
+                }
+              }
+            } else {
+              // If it's already in the expected format, filter out timestamps
+              Object.entries(indicatorData as Record<string, number[]>).forEach(
+                ([key, value]) => {
+                  if (key !== "timestamps" && key !== "timestamp") {
+                    processedData[key] = value;
+                  }
+                }
+              );
+            }
+
+            // Log the processed data for verification
+            console.log(`Processed data for ${indicatorType}:`, {
+              fields: Object.keys(processedData),
+              lengths: Object.keys(processedData).map(key => ({
+                field: key,
+                length: processedData[key]?.length || 0
+              }))
+            });
+
+            // Create a processed indicator object that includes position information
+            processedIndicators.push({
+              indicator: indicatorType,
+              position: position,
+              data: processedData,
+            });
+
+            console.log(
+              `Processed indicator ${indicatorType} with position ${position}`
+            );
+          }
+        }
+
+        // Log the processed indicators for rendering
+        console.log("Processed indicators for rendering:", processedIndicators);
+
+        // Pass processed indicators data to parent component if callback exists
+        if (onProcessedDataUpdate && processedIndicators.length > 0) {
+          onProcessedDataUpdate(processedIndicators);
+
+          // Also attach to the indicator for backward compatibility
+          indicator.processedData = processedIndicators;
+        }
+      }
+    } catch (error) {
+      console.error("Error calculating indicators:", error);
+    }
 
     onAddIndicator(indicator);
     onClose();
