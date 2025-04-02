@@ -91,7 +91,7 @@ const IndicatorChart: React.FC<IndicatorChartProps> = ({
         name: `${fieldDescription}`,
         type: "line",
         // Use simple index-based data points rather than timestamps
-        data: values.map((value, i) => value),
+        data: values.map((value) => value),
         symbol: "none",
         smooth: true,
         lineStyle: {

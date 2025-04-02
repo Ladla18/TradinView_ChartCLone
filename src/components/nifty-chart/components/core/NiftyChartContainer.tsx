@@ -11,6 +11,7 @@ import IndicatorSelector from "../indicators/IndicatorSelector";
 import IndicatorCharts from "../indicators/IndicatorCharts";
 import { twMerge } from "tailwind-merge";
 import { AlertCircle, RefreshCw } from "lucide-react";
+import AddIndicatorModal from "../modals/AddIndicatorModal";
 
 interface ProcessedIndicator {
   indicator: string;
@@ -40,6 +41,10 @@ const NiftyChartContainer: React.FC<NiftyChartContainerProps> = ({
   const [options, setOptions] = useState<NiftyChartOptions>(initialOptions);
   const [timeframe, setTimeframe] = useState<number>(days);
   const [isIndicatorModalOpen, setIsIndicatorModalOpen] = useState(false);
+  const [isAddIndicatorModalOpen, setIsAddIndicatorModalOpen] = useState(false);
+  const [externalIndicatorData, setExternalIndicatorData] = useState<
+    IndicatorCalculationResult[]
+  >([]);
 
   const {
     data,
@@ -70,6 +75,8 @@ const NiftyChartContainer: React.FC<NiftyChartContainerProps> = ({
   const finalCalculationResults =
     calculationResults && calculationResults.length > 0
       ? calculationResults
+      : externalIndicatorData.length > 0
+      ? externalIndicatorData
       : internalCalculationResults;
 
   // Debug when calculation results change
@@ -138,6 +145,53 @@ const NiftyChartContainer: React.FC<NiftyChartContainerProps> = ({
     }
   };
 
+  // Handle data from AddIndicatorModal
+  const handleProcessedDataUpdate = (data: IndicatorCalculationResult[]) => {
+    console.log("Received processed data from AddIndicatorModal:", data);
+    setExternalIndicatorData(data);
+
+    // Create virtual selected indicators for on-chart indicators from AddIndicatorModal
+    // This is needed because the chart utils expects indicators in the selectedIndicators format
+    const onChartIndicators = data.filter(
+      (result) => result.position === "on_chart"
+    );
+
+    if (onChartIndicators.length > 0) {
+      // Create temporary selected indicators for these
+      const tempSelectedIndicators = onChartIndicators.map((result) => ({
+        id: result.indicator,
+        name: result.indicator,
+        parameters: {},
+        active: true,
+      }));
+
+      console.log(
+        "Created virtual indicators for on-chart display:",
+        tempSelectedIndicators
+      );
+
+      // Add these to the existing selected indicators
+      setOptions((prev) => ({
+        ...prev,
+        indicators: [...(prev.indicators || []), ...tempSelectedIndicators],
+      }));
+    }
+  };
+
+  // Function to add indicator from AddIndicatorModal
+  const handleAddIndicator = (indicator: any) => {
+    console.log("Adding indicator from modal:", indicator);
+    // If the indicator already has processedData, use it
+    if (indicator.processedData) {
+      handleProcessedDataUpdate(indicator.processedData);
+    }
+    setIsAddIndicatorModalOpen(false);
+  };
+
+  const toggleAddIndicatorModal = () => {
+    setIsAddIndicatorModalOpen(!isAddIndicatorModalOpen);
+  };
+
   // If there's an error, display it
   if (error && !data.length) {
     return (
@@ -198,6 +252,13 @@ const NiftyChartContainer: React.FC<NiftyChartContainerProps> = ({
           >
             Indicators{" "}
             {selectedIndicators.length > 0 && `(${selectedIndicators.length})`}
+          </button>
+
+          <button
+            onClick={toggleAddIndicatorModal}
+            className="rounded border border-blue-500 bg-blue-500 px-3 py-2 text-white hover:bg-blue-600"
+          >
+            Add Custom Indicator
           </button>
 
           {selectedIndicators.length > 0 && (
@@ -303,6 +364,15 @@ const NiftyChartContainer: React.FC<NiftyChartContainerProps> = ({
         onCalculate={handleCalculateIndicators}
         isLoading={indicatorsLoading}
       />
+
+      {/* Add Indicator Modal */}
+      {isAddIndicatorModalOpen && (
+        <AddIndicatorModal
+          onClose={() => setIsAddIndicatorModalOpen(false)}
+          onAddIndicator={handleAddIndicator}
+          onProcessedDataUpdate={handleProcessedDataUpdate}
+        />
+      )}
 
       <div className="mt-3 text-center text-xs text-gray-500">
         Data source: {isUsingMockData ? "Simulated data" : "dev.api.tusta.co"}

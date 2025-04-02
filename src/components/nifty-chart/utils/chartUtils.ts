@@ -42,14 +42,23 @@ export const generateNiftyChartOptions = (
 
   // Get the on-chart indicators from the calculation results
   const onChartIndicators =
-    options.calculationResults?.filter(
-      (result: IndicatorCalculationResult) =>
-        result.position === "on_chart" &&
-        indicators.some(
-          (ind: { id: string; active: boolean }) =>
-            ind.id === result.indicator && ind.active
-        )
-    ) || [];
+    options.calculationResults?.filter((result: IndicatorCalculationResult) => {
+      // Check if it's an on-chart indicator
+      if (result.position === "on_chart") {
+        // If the indicators list is not empty, check if this indicator is active
+        if (indicators && indicators.length > 0) {
+          return indicators.some(
+            (ind: { id: string; active: boolean }) =>
+              ind.id === result.indicator && ind.active
+          );
+        }
+        // If there's no indicator list or it's empty, include all on-chart indicators
+        return true;
+      }
+      return false;
+    }) || [];
+
+  console.log("On-chart indicators for main chart:", onChartIndicators);
 
   const baseOption: EChartsOption = {
     title: {
@@ -105,9 +114,21 @@ export const generateNiftyChartOptions = (
             param.seriesName !== "Volume" &&
             param.seriesName !== "Nifty 50"
           ) {
-            tooltipContent += `<div style="color:${param.color}">${
-              param.seriesName
-            }: ${param.data.toFixed(2)}</div>`;
+            // Extract the real indicator name from the series name (removing field suffix)
+            const seriesNameParts = param.seriesName.split("_");
+            const indicatorName = seriesNameParts[0];
+            const fieldName =
+              seriesNameParts.length > 1 ? seriesNameParts[1] : "";
+
+            const displayName = fieldName
+              ? `${indicatorName} (${fieldName})`
+              : indicatorName;
+
+            tooltipContent += `<div style="color:${
+              param.color
+            }">${displayName}: ${
+              typeof param.data === "number" ? param.data.toFixed(2) : "N/A"
+            }</div>`;
           }
         });
 
@@ -118,9 +139,35 @@ export const generateNiftyChartOptions = (
       data: [
         "Nifty 50",
         ...(showVolume ? ["Volume"] : []),
-        ...onChartIndicators.flatMap((ind) =>
-          Object.keys(ind.data).map((key) => `${ind.indicator}_${key}`)
-        ),
+        ...onChartIndicators
+          .flatMap((ind) => {
+            // Get only fields with actual data (non-null values)
+            const fieldsWithData = Object.entries(ind.data)
+              .filter(([key, values]) => {
+                if (key === "timestamps" || key === "timestamp") return false;
+                return (
+                  values &&
+                  Array.isArray(values) &&
+                  values.some((v) => v !== null && v !== undefined)
+                );
+              })
+              .map(([key]) => key);
+
+            return fieldsWithData.map((key) => {
+              // Create a more readable display name
+              const displayName =
+                key === "value" ? ind.indicator : `${ind.indicator} (${key})`;
+
+              // Store the actual series name for reference
+              const seriesName = `${ind.indicator}_${key}`;
+
+              return {
+                name: seriesName,
+                displayName: displayName,
+              };
+            });
+          })
+          .map((item) => item.displayName),
       ],
       top: 30,
       textStyle: {
@@ -278,40 +325,66 @@ export const generateNiftyChartOptions = (
   let colorIndex = 0;
 
   onChartIndicators.forEach((indicatorResult: IndicatorCalculationResult) => {
-    Object.entries(indicatorResult.data).forEach(([key, values]) => {
-      // Don't use timestamps for on-chart indicators
-      if (key === "timestamps") return;
+    // Filter out fields with all null values
+    const fieldsWithData = Object.entries(indicatorResult.data)
+      .filter(([key, values]) => {
+        // Skip timestamp fields
+        if (key === "timestamps" || key === "timestamp") return false;
 
-      if (values && Array.isArray(values) && values.length > 0) {
-        // For on-chart indicators, we need to sync with the main chart dates
-        // So we don't use timestamps, but instead use the last N values
-        const dataPoints = values.slice(-dates.length);
+        // Check if this field has any non-null values
+        return (
+          values &&
+          Array.isArray(values) &&
+          values.some((v) => v !== null && v !== undefined)
+        );
+      })
+      .map(([key]) => key);
 
-        // Pad with null if necessary
-        if (dataPoints.length < dates.length) {
-          const nullPadding = new Array(dates.length - dataPoints.length).fill(
-            null
-          );
-          dataPoints.unshift(...nullPadding);
-        }
+    console.log(
+      `Fields with actual data for ${indicatorResult.indicator}:`,
+      fieldsWithData
+    );
 
-        const seriesName = `${indicatorResult.indicator}_${key}`;
-        (baseOption.series as any[]).push({
-          name: seriesName,
-          type: "line",
-          data: dataPoints,
-          symbol: "none",
-          smooth: true,
-          lineStyle: {
-            color: colors[colorIndex % colors.length],
-            width: 2,
-          },
-          xAxisIndex: 0,
-          yAxisIndex: 0,
-        });
+    // Process each field that has data
+    fieldsWithData.forEach((key) => {
+      const values = indicatorResult.data[key];
+      if (!values || !Array.isArray(values)) return;
 
-        colorIndex++;
+      // For on-chart indicators, we need to sync with the main chart dates
+      // So we don't use timestamps, but instead use the last N values
+      const dataPoints = values.slice(-dates.length);
+
+      // Pad with null if necessary
+      if (dataPoints.length < dates.length) {
+        const nullPadding = new Array(dates.length - dataPoints.length).fill(
+          null
+        );
+        dataPoints.unshift(...nullPadding);
       }
+
+      const seriesName = `${indicatorResult.indicator}_${key}`;
+      const displayName =
+        key === "value"
+          ? indicatorResult.indicator
+          : `${indicatorResult.indicator} (${key})`;
+
+      console.log(`Adding on-chart indicator series: ${displayName}`);
+
+      (baseOption.series as any[]).push({
+        name: seriesName,
+        type: "line",
+        data: dataPoints,
+        symbol: "none",
+        smooth: true,
+        lineStyle: {
+          color: colors[colorIndex % colors.length],
+          width: 2,
+        },
+        xAxisIndex: 0,
+        yAxisIndex: 0,
+      });
+
+      colorIndex++;
     });
   });
 

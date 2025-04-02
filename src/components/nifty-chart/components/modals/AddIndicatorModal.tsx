@@ -363,49 +363,140 @@ const AddIndicatorModal: React.FC<AddIndicatorModalProps> = ({
                 const fields = Object.keys(indicatorData[0]).filter(
                   (field) => field !== "timestamps" && field !== "timestamp"
                 );
-                
+
                 // Log all available fields in the response
-                console.log(`Indicator ${indicatorType} available fields:`, fields);
-                
+                console.log(
+                  `Indicator ${indicatorType} available fields:`,
+                  fields
+                );
+
+                // Create a normalized map of field names to handle duplicates
+                // First normalize snake_case and title case fields
+                const normalizedFields: Record<string, string> = {};
+                const normalizedData: Record<string, number[]> = {};
+
+                // Identify duplicate fields (snake_case vs title case) and pick the one with actual values
                 fields.forEach((field) => {
-                  processedData[field] = [];
+                  // Create normalized keys by converting to lowercase and removing spaces
+                  const normalizedKey = field
+                    .toLowerCase()
+                    .replace(/\s+/g, "_");
+
+                  // If we already have this field, check which one has actual data
+                  if (normalizedFields[normalizedKey]) {
+                    // Check first value of both fields to determine which has actual data
+                    const existingField = normalizedFields[normalizedKey];
+                    const existingValue = indicatorData[0][existingField];
+                    const currentValue = indicatorData[0][field];
+
+                    // If current field has values but existing doesn't, replace it
+                    if (currentValue !== null && existingValue === null) {
+                      normalizedFields[normalizedKey] = field;
+                    }
+                  } else {
+                    // First time seeing this field
+                    normalizedFields[normalizedKey] = field;
+                  }
                 });
 
-                // Fill the arrays with values, excluding timestamps
+                // Initialize arrays for each normalized field
+                Object.values(normalizedFields).forEach((field) => {
+                  normalizedData[field] = [];
+                });
+
+                console.log(
+                  `Normalized fields for ${indicatorType}:`,
+                  normalizedFields
+                );
+
+                // Fill the arrays with values, using only the normalized fields
                 indicatorData.forEach((dataPoint) => {
-                  fields.forEach((field) => {
-                    processedData[field].push(dataPoint[field]);
+                  Object.values(normalizedFields).forEach((field) => {
+                    normalizedData[field].push(dataPoint[field]);
                   });
                 });
-                
+
+                // Use the normalized data
+                Object.assign(processedData, normalizedData);
+
                 // Check if all expected output fields from schema are present
                 if (indicatorSchema.output) {
                   const expectedFields = Object.keys(indicatorSchema.output);
-                  const missingFields = expectedFields.filter(field => !fields.includes(field));
-                  
+                 
+
+                  // Check for missing fields
+                  const missingFields = expectedFields.filter((field) => {
+                    const normalizedField = field
+                      .toLowerCase()
+                      .replace(/\s+/g, "_");
+                    return !Object.keys(normalizedFields).includes(
+                      normalizedField
+                    );
+                  });
+
                   if (missingFields.length > 0) {
-                    console.warn(`Missing fields in ${indicatorType} data:`, missingFields);
+                    console.warn(
+                      `Missing fields in ${indicatorType} data:`,
+                      missingFields
+                    );
+
+                    // Initialize missing fields with empty arrays
+                    missingFields.forEach((field) => {
+                      processedData[field] = Array(indicatorData.length).fill(
+                        null
+                      );
+                    });
                   }
                 }
               }
             } else {
-              // If it's already in the expected format, filter out timestamps
+              // If it's already in the expected format, filter out timestamps and duplicate null fields
+              const normalizedFields: Record<string, string> = {};
+
               Object.entries(indicatorData as Record<string, number[]>).forEach(
                 ([key, value]) => {
                   if (key !== "timestamps" && key !== "timestamp") {
-                    processedData[key] = value;
+                    // Normalize the key
+                    const normalizedKey = key
+                      .toLowerCase()
+                      .replace(/\s+/g, "_");
+
+                    // Check if we already have this field
+                    if (normalizedFields[normalizedKey]) {
+                      // If the current field has values but the existing doesn't, replace it
+                      const existingField = normalizedFields[normalizedKey];
+                      const existingValues = (
+                        indicatorData as Record<string, number[]>
+                      )[existingField];
+
+                      if (
+                        value.some((v) => v !== null) &&
+                        existingValues.every((v) => v === null)
+                      ) {
+                        normalizedFields[normalizedKey] = key;
+                      }
+                    } else {
+                      normalizedFields[normalizedKey] = key;
+                    }
                   }
                 }
               );
+
+              // Add only the normalized fields
+              Object.values(normalizedFields).forEach((field) => {
+                processedData[field] = (
+                  indicatorData as Record<string, number[]>
+                )[field];
+              });
             }
 
             // Log the processed data for verification
             console.log(`Processed data for ${indicatorType}:`, {
               fields: Object.keys(processedData),
-              lengths: Object.keys(processedData).map(key => ({
+              lengths: Object.keys(processedData).map((key) => ({
                 field: key,
-                length: processedData[key]?.length || 0
-              }))
+                length: processedData[key]?.length || 0,
+              })),
             });
 
             // Create a processed indicator object that includes position information
@@ -416,7 +507,9 @@ const AddIndicatorModal: React.FC<AddIndicatorModalProps> = ({
             });
 
             console.log(
-              `Processed indicator ${indicatorType} with position ${position}`
+              `Processed indicator ${indicatorType} with position ${position} - will be displayed ${
+                position === "on_chart" ? "on main chart" : "below main chart"
+              }`
             );
           }
         }
