@@ -19,7 +19,6 @@ interface NiftyChartContainerProps {
   days?: number;
   className?: string;
   style?: React.CSSProperties;
-  useMockData?: boolean;
   apiUrl?: string;
   calculationResults?: IndicatorCalculationResult[];
 }
@@ -29,7 +28,6 @@ const NiftyChartContainer: React.FC<NiftyChartContainerProps> = ({
   days = 30,
   className = "",
   style = {},
-  useMockData = false,
   apiUrl = "https://dev.api.tusta.co/charts/get_csv_data",
   calculationResults = [],
 }) => {
@@ -46,10 +44,8 @@ const NiftyChartContainer: React.FC<NiftyChartContainerProps> = ({
     loading: chartLoading,
     error,
     refetch,
-    isUsingMockData,
   } = useNiftyData({
-    days: timeframe,
-    mockData: useMockData,
+    days: 0, // Don't limit by days, show all data
     apiUrl,
   });
 
@@ -206,20 +202,6 @@ const NiftyChartContainer: React.FC<NiftyChartContainerProps> = ({
 
   return (
     <div className={twMerge("flex w-full flex-col", className)} style={style}>
-      {/* Data source notification */}
-      {isUsingMockData && (
-        <div className="mb-3 flex items-center justify-center rounded bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          <AlertCircle className="mr-2 h-4 w-4" />
-          Using simulated data.
-          <button
-            onClick={refetch}
-            className="ml-2 cursor-pointer text-amber-800 underline"
-          >
-            Try again
-          </button>
-        </div>
-      )}
-
       {/* Chart controls */}
       <ChartControls
         options={options}
@@ -244,7 +226,9 @@ const NiftyChartContainer: React.FC<NiftyChartContainerProps> = ({
           calculationResults={finalCalculationResults}
           indicatorSchema={indicatorSchema}
           theme={options.theme}
-          dates={data.map((item: NiftyDataPoint) => item.date)}
+          dates={data.map((item: NiftyDataPoint) =>
+            item.time ? `${item.date} ${item.time}` : item.date
+          )}
         />
       )}
 
@@ -272,7 +256,7 @@ const NiftyChartContainer: React.FC<NiftyChartContainerProps> = ({
       )}
 
       <div className="mt-3 text-center text-xs text-gray-500">
-        Data source: {isUsingMockData ? "Simulated data" : "dev.api.tusta.co"}
+        Data source: dev.api.tusta.co
       </div>
     </div>
   );

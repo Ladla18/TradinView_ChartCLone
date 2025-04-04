@@ -25,7 +25,72 @@ const NiftyChart: React.FC<NiftyChartProps> = ({
 
   // Update options when data or options change
   useEffect(() => {
-    setChartOptions(generateNiftyChartOptions(data, options));
+    // Log the first few data points for debugging
+    if (data.length > 0) {
+      console.log("Received data sample:", data.slice(0, 3));
+    }
+
+    // Get base options from the chart utils
+    const baseOptions = generateNiftyChartOptions(data, options);
+
+    // Filter out the slider dataZoom and keep only the inside dataZoom
+    const dataZoom = Array.isArray(baseOptions.dataZoom)
+      ? baseOptions.dataZoom
+          .filter((zoom) => zoom.type !== "slider") // Remove the slider zoom bar
+          .map((zoom) => {
+            if (zoom.type === "inside") {
+              return {
+                ...zoom,
+                zoomOnMouseWheel: true,
+                moveOnMouseMove: true,
+                // Make zoom much slower (higher value = slower zoom)
+                zoomRate: 200,
+                // Minimum zoom size - prevent zooming in too far
+                minSpan: 5,
+                // Smoothness of zooming
+                throttle: 10,
+              };
+            }
+            return zoom;
+          })
+      : [];
+
+    // If no inside dataZoom was found, add a new one
+    const hasInsideZoom =
+      Array.isArray(dataZoom) &&
+      dataZoom.some((zoom) => zoom.type === "inside");
+
+    // Get xAxisIndex from the existing dataZoom if available
+    let xAxisIndex: number | number[] = 0;
+    if (
+      Array.isArray(baseOptions.dataZoom) &&
+      baseOptions.dataZoom.length > 0
+    ) {
+      const firstZoom = baseOptions.dataZoom[0];
+      if (firstZoom && "xAxisIndex" in firstZoom) {
+        xAxisIndex = firstZoom.xAxisIndex as number | number[];
+      }
+    }
+
+    if (!hasInsideZoom) {
+      dataZoom.push({
+        type: "inside",
+        zoomOnMouseWheel: true,
+        moveOnMouseMove: true,
+        zoomRate: 200,
+        minSpan: 5,
+        throttle: 10,
+        xAxisIndex: xAxisIndex,
+      });
+    }
+
+    // Apply the customized dataZoom configuration
+    const customOptions = {
+      ...baseOptions,
+      dataZoom: dataZoom,
+    };
+
+    setChartOptions(customOptions);
   }, [data, options]);
 
   // Custom height/width from style prop should override Tailwind classes

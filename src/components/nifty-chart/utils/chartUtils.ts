@@ -16,25 +16,26 @@ export const generateNiftyChartOptions = (
     indicators = [],
   } = options;
 
-  // Sort data by date for proper display
-  const sortedData = [...data].sort(
-    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+  // Use data directly as received from API - no sorting needed
+  const chartData = data;
+
+  // Create date-time labels for x-axis
+  const dateTimeLabels = chartData.map((item) =>
+    item.time ? `${item.date} ${item.time}` : item.date
   );
 
-  // Extract date values for x-axis
-  const dates = sortedData.map((item) => item.date);
-
-  // Prepare data for candlestick chart
-  const candlestickData = sortedData.map((item) => [
+  // Prepare data for candlestick chart - format should be [open, close, low, high]
+  const candlestickData = chartData.map((item) => [
     item.open,
     item.close,
     item.low,
     item.high,
   ]);
+  console.log("candlestickData", candlestickData);
 
   // Prepare data for volume chart if needed
   const volumeData = showVolume
-    ? sortedData.map((item) => item.volume || 0)
+    ? chartData.map((item) => item.volume || 0)
     : [];
 
   // Base text color based on theme
@@ -60,6 +61,37 @@ export const generateNiftyChartOptions = (
 
   console.log("On-chart indicators for main chart:", onChartIndicators);
 
+  // Prepare dataset with chart data and indicators
+  const sourceData = chartData.map((item, index) => {
+    const dataPoint: any = {
+      time: item.time ? `${item.date} ${item.time}` : item.date,
+      open: item.open,
+      close: item.close,
+      low: item.low,
+      high: item.high,
+      volume: item.volume || 0,
+    };
+
+    // Add indicator fields if available
+    onChartIndicators.forEach((indicatorResult) => {
+      Object.entries(indicatorResult.data).forEach(([key, values]) => {
+        if (
+          key !== "timestamps" &&
+          key !== "timestamp" &&
+          Array.isArray(values)
+        ) {
+          const dataIndex = values.length - chartData.length + index;
+          if (dataIndex >= 0 && dataIndex < values.length) {
+            const fieldName = `${indicatorResult.indicator}_${key}`;
+            dataPoint[fieldName] = values[dataIndex];
+          }
+        }
+      });
+    });
+
+    return dataPoint;
+  });
+
   const baseOption: EChartsOption = {
     title: {
       text: title,
@@ -67,6 +99,9 @@ export const generateNiftyChartOptions = (
       textStyle: {
         color: textColor,
       },
+    },
+    dataset: {
+      source: sourceData,
     },
     tooltip: {
       trigger: "axis",
@@ -88,14 +123,31 @@ export const generateNiftyChartOptions = (
 
         if (!candlestickParam) return "";
 
-        const date = candlestickParam.axisValue;
-        const [open, close, low, high] = candlestickParam.data;
+        // Handle both dataset format and regular format
+        let dateTime, open, close, low, high;
 
-        let tooltipContent = `<div style="font-weight: bold; margin-bottom: 4px">${date}</div>`;
-        tooltipContent += `<div>Open: ${open.toFixed(2)}</div>`;
-        tooltipContent += `<div>Close: ${close.toFixed(2)}</div>`;
-        tooltipContent += `<div>Low: ${low.toFixed(2)}</div>`;
-        tooltipContent += `<div>High: ${high.toFixed(2)}</div>`;
+        if (
+          candlestickParam.value &&
+          typeof candlestickParam.value === "object"
+        ) {
+          // Using dataset format
+          dateTime = candlestickParam.value.time;
+          open = candlestickParam.value.open;
+          close = candlestickParam.value.close;
+          low = candlestickParam.value.low;
+          high = candlestickParam.value.high;
+        } else {
+          // Using regular format
+          dateTime = candlestickParam.axisValue;
+          [open, close, low, high] = candlestickParam.data;
+        }
+
+        // Format the tooltip content with time
+        let tooltipContent = `<div style="font-weight: bold; margin-bottom: 4px">${dateTime}</div>`;
+        tooltipContent += `<div>Open: ${Number(open).toFixed(2)}</div>`;
+        tooltipContent += `<div>Close: ${Number(close).toFixed(2)}</div>`;
+        tooltipContent += `<div>Low: ${Number(low).toFixed(2)}</div>`;
+        tooltipContent += `<div>High: ${Number(high).toFixed(2)}</div>`;
 
         // Add volume if available
         if (showVolume) {
@@ -103,7 +155,15 @@ export const generateNiftyChartOptions = (
             (param: any) => param.seriesName === "Volume"
           );
           if (volumeParam) {
-            tooltipContent += `<div>Volume: ${volumeParam.data.toLocaleString()}</div>`;
+            let volume;
+            if (volumeParam.value && typeof volumeParam.value === "object") {
+              volume = volumeParam.value.volume;
+            } else {
+              volume = volumeParam.data;
+            }
+            tooltipContent += `<div>Volume: ${Number(
+              volume
+            ).toLocaleString()}</div>`;
           }
         }
 
@@ -124,10 +184,18 @@ export const generateNiftyChartOptions = (
               ? `${indicatorName} (${fieldName})`
               : indicatorName;
 
+            // Get indicator value from either dataset format or regular format
+            let value;
+            if (param.value && typeof param.value === "object") {
+              value = param.value[param.seriesName];
+            } else {
+              value = param.data;
+            }
+
             tooltipContent += `<div style="color:${
               param.color
             }">${displayName}: ${
-              typeof param.data === "number" ? param.data.toFixed(2) : "N/A"
+              typeof value === "number" ? value.toFixed(2) : "N/A"
             }</div>`;
           }
         });
@@ -184,22 +252,28 @@ export const generateNiftyChartOptions = (
       ? [
           {
             type: "category",
-            data: dates,
             boundaryGap: false,
             axisLine: { lineStyle: { color: textColor } },
             axisLabel: {
               color: textColor,
               formatter: (value: string) => {
-                // Format the date to be more readable
-                return value.slice(5); // Remove year part, keep only month-day
+                // Format to show compact date and time
+                if (value.includes(" ")) {
+                  // If it has both date and time (contains space)
+                  const parts = value.split(" ");
+                  // Return MM-DD HH:MM format
+                  return `${parts[0].substring(5)} ${parts[1]}`;
+                }
+                return value.slice(5); // Just show MM-DD for dates without time
               },
+              rotate: 30,
+              fontSize: 10,
             },
             splitLine: { show: false },
             gridIndex: 0,
           },
           {
             type: "category",
-            data: dates,
             boundaryGap: false,
             axisLine: { lineStyle: { color: textColor } },
             axisLabel: { show: false },
@@ -211,15 +285,22 @@ export const generateNiftyChartOptions = (
       : [
           {
             type: "category",
-            data: dates,
             boundaryGap: false,
             axisLine: { lineStyle: { color: textColor } },
             axisLabel: {
               color: textColor,
               formatter: (value: string) => {
-                // Format the date to be more readable
-                return value.slice(5); // Remove year part, keep only month-day
+                // Format to show compact date and time
+                if (value.includes(" ")) {
+                  // If it has both date and time (contains space)
+                  const parts = value.split(" ");
+                  // Return MM-DD HH:MM format
+                  return `${parts[0].substring(5)} ${parts[1]}`;
+                }
+                return value.slice(5); // Just show MM-DD for dates without time
               },
+              rotate: 30,
+              fontSize: 10,
             },
             splitLine: { show: false },
           },
@@ -262,26 +343,19 @@ export const generateNiftyChartOptions = (
       {
         type: "inside",
         xAxisIndex: showVolume ? [0, 1] : [0],
-        start: 50,
+        start: 0,
         end: 100,
-      },
-      {
-        show: true,
-        xAxisIndex: showVolume ? [0, 1] : [0],
-        type: "slider",
-        bottom: "2%",
-        start: 50,
-        end: 100,
-        textStyle: {
-          color: textColor,
-        },
       },
     ],
     series: [
       {
         name: "Nifty 50",
         type: "candlestick",
-        data: candlestickData,
+        encode: {
+          x: "time",
+          y: ["open", "close", "low", "high"],
+          tooltip: ["open", "close", "low", "high"],
+        },
         itemStyle: {
           color: "#ef232a", // up candle color (bearish)
           color0: "#14b143", // down candle color (bullish)
@@ -299,7 +373,10 @@ export const generateNiftyChartOptions = (
     (baseOption.series as any[]).push({
       name: "Volume",
       type: "bar",
-      data: volumeData,
+      encode: {
+        x: "time",
+        y: "volume",
+      },
       itemStyle: {
         color: "#999",
       },
@@ -347,21 +424,6 @@ export const generateNiftyChartOptions = (
 
     // Process each field that has data
     fieldsWithData.forEach((key) => {
-      const values = indicatorResult.data[key];
-      if (!values || !Array.isArray(values)) return;
-
-      // For on-chart indicators, we need to sync with the main chart dates
-      // So we don't use timestamps, but instead use the last N values
-      const dataPoints = values.slice(-dates.length);
-
-      // Pad with null if necessary
-      if (dataPoints.length < dates.length) {
-        const nullPadding = new Array(dates.length - dataPoints.length).fill(
-          null
-        );
-        dataPoints.unshift(...nullPadding);
-      }
-
       const seriesName = `${indicatorResult.indicator}_${key}`;
       const displayName =
         key === "value"
@@ -373,7 +435,10 @@ export const generateNiftyChartOptions = (
       (baseOption.series as any[]).push({
         name: seriesName,
         type: "line",
-        data: dataPoints,
+        encode: {
+          x: "time",
+          y: seriesName,
+        },
         symbol: "none",
         smooth: true,
         lineStyle: {

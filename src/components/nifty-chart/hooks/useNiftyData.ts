@@ -1,10 +1,8 @@
 import { useState, useEffect } from "react";
 import { NiftyDataPoint, ApiDataPoint } from "../types/index";
-import { generateMockNiftyData } from "../utils/mockData";
 
 interface UseNiftyDataProps {
   days?: number;
-  mockData?: boolean;
   apiUrl?: string;
 }
 
@@ -13,19 +11,16 @@ interface UseNiftyDataReturn {
   loading: boolean;
   error: Error | null;
   refetch: () => void;
-  isUsingMockData: boolean;
 }
 
 export const useNiftyData = ({
-  days = 30,
-  mockData = false,
+  days = 0,
   apiUrl = "https://dev.api.tusta.co/charts/get_csv_data",
 }: UseNiftyDataProps = {}): UseNiftyDataReturn => {
   const [data, setData] = useState<NiftyDataPoint[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
   const [refreshKey, setRefreshKey] = useState<number>(0);
-  const [isUsingMockData, setIsUsingMockData] = useState<boolean>(mockData);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -33,64 +28,54 @@ export const useNiftyData = ({
       setError(null);
 
       try {
-        if (mockData) {
-          const mockNiftyData = generateMockNiftyData(days);
-          setData(mockNiftyData);
-          setIsUsingMockData(true);
-        } else {
-          // Fetch data from the real API
-          const response = await fetch(apiUrl);
+        // Fetch data from the API
+        const response = await fetch(apiUrl);
 
-          if (!response.ok) {
-            throw new Error(
-              `API request failed with status ${response.status}`
-            );
-          }
+        if (!response.ok) {
+          throw new Error(`API request failed with status ${response.status}`);
+        }
 
-          const apiData: ApiDataPoint[] = await response.json();
+        const apiData: ApiDataPoint[] = await response.json();
 
-          if (!apiData || !Array.isArray(apiData) || apiData.length === 0) {
-            throw new Error("API returned empty or invalid data");
-          }
+        if (!apiData || !Array.isArray(apiData) || apiData.length === 0) {
+          throw new Error("API returned empty or invalid data");
+        }
 
-          // Transform API data to our format
-          const formattedData: NiftyDataPoint[] = apiData.map((item) => ({
-            date: new Date(item.time).toISOString().split("T")[0],
+        // Transform API data to our format
+        const formattedData: NiftyDataPoint[] = apiData.map((item) => {
+          const dateTime = new Date(item.time);
+          const date = dateTime.toISOString().split("T")[0];
+          const time = dateTime.toTimeString().split(" ")[0].substring(0, 5); // Format as HH:MM
+
+          return {
+            date: date,
+            time: time,
             open: item.open,
             high: item.high,
             low: item.low,
             close: item.close,
             volume: item.volume,
-          }));
+          };
+        });
 
-          // Take only the number of days requested, starting from the most recent
-          const limitedData = days ? formattedData.slice(-days) : formattedData;
-
-          setData(limitedData);
-          setIsUsingMockData(false);
-        }
+        // Use all data from the API response
+        setData(formattedData);
       } catch (err) {
         console.error("Error fetching Nifty data:", err);
         setError(
           err instanceof Error ? err : new Error("An unknown error occurred")
         );
-
-        // Fallback to mock data if the API fails
-        if (!mockData) {
-          console.log("Falling back to mock data");
-          const mockNiftyData = generateMockNiftyData(days);
-          setData(mockNiftyData);
-          setIsUsingMockData(true);
-        }
+        // Set empty data on error
+        setData([]);
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
-  }, [days, mockData, refreshKey, apiUrl]);
+  }, [refreshKey, apiUrl]);
 
   const refetch = () => setRefreshKey((prev) => prev + 1);
 
-  return { data, loading, error, refetch, isUsingMockData };
+  return { data, loading, error, refetch };
 };
