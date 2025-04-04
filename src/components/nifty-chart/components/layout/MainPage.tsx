@@ -71,19 +71,7 @@ export default function MainPage() {
         }`}
         style={{ width: `${leftPanelWidth}%` }}
       >
-        <header className="flex justify-between items-center mb-5 px-6 py-4">
-          <h1 className="text-2xl font-bold m-0">Nifty 50 Chart</h1>
-          <button
-            onClick={toggleTheme}
-            className={`px-4 py-2 rounded border-none cursor-pointer transition-colors ${
-              theme === "dark"
-                ? "bg-gray-700 text-white hover:bg-gray-600"
-                : "bg-gray-200 text-gray-800 hover:bg-gray-300"
-            }`}
-          >
-            {theme === "dark" ? "Light Mode" : "Dark Mode"}
-          </button>
-        </header>
+       
 
         <NiftyChartContainer
           initialOptions={{
@@ -92,7 +80,7 @@ export default function MainPage() {
             title: "Nifty 50 Price Chart",
           }}
           days={30}
-          useMockData={false}
+         
           apiUrl="https://dev.api.tusta.co/charts/get_csv_data"
           calculationResults={indicatorData}
         />

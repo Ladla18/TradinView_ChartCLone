@@ -161,7 +161,15 @@ export const generateNiftyChartOptions = (
             } else {
               volume = volumeParam.data;
             }
-            tooltipContent += `<div>Volume: ${Number(
+
+            // Add volume to tooltip
+            const volumeColor =
+              chartData[candlestickParam.dataIndex].close >=
+              chartData[candlestickParam.dataIndex].open
+                ? "rgba(20, 177, 67, 0.8)"
+                : "rgba(239, 35, 42, 0.8)";
+
+            tooltipContent += `<div style="color:${volumeColor}">Volume: ${Number(
               volume
             ).toLocaleString()}</div>`;
           }
@@ -242,109 +250,145 @@ export const generateNiftyChartOptions = (
         color: textColor,
       },
     },
-    grid: showVolume
-      ? [
-          { left: "10%", right: "8%", top: "15%", height: "50%" },
-          { left: "10%", right: "8%", top: "70%", height: "16%" },
-        ]
-      : [{ left: "10%", right: "8%", top: "15%", bottom: "15%" }],
-    xAxis: showVolume
-      ? [
-          {
-            type: "category",
-            boundaryGap: false,
-            axisLine: { lineStyle: { color: textColor } },
-            axisLabel: {
-              color: textColor,
-              formatter: (value: string) => {
-                // Format to show compact date and time
-                if (value.includes(" ")) {
-                  // If it has both date and time (contains space)
-                  const parts = value.split(" ");
-                  // Return MM-DD HH:MM format
-                  return `${parts[0].substring(5)} ${parts[1]}`;
-                }
-                return value.slice(5); // Just show MM-DD for dates without time
-              },
-              rotate: 30,
-              fontSize: 10,
-            },
-            splitLine: { show: false },
-            gridIndex: 0,
+    grid: [
+      {
+        left: "0%",
+        right: "2%",
+        top: "15%",
+        bottom: "60px", // Explicit pixels for bottom margin for the slider
+        containLabel: true, // Ensure axis labels are contained within the grid
+      },
+    ],
+    xAxis: [
+      {
+        type: "category",
+        boundaryGap: false,
+        axisLine: { lineStyle: { color: textColor } },
+        axisLabel: {
+          color: textColor,
+          formatter: (value: string) => {
+            // Format to show compact date and time
+            if (value.includes(" ")) {
+              // If it has both date and time (contains space)
+              const parts = value.split(" ");
+              // Return MM-DD HH:MM format
+              return `${parts[0].substring(5)} ${parts[1]}`;
+            }
+            return value.slice(5); // Just show MM-DD for dates without time
           },
-          {
-            type: "category",
-            boundaryGap: false,
-            axisLine: { lineStyle: { color: textColor } },
-            axisLabel: { show: false },
-            axisTick: { show: false },
-            splitLine: { show: false },
-            gridIndex: 1,
+          rotate: 30,
+          fontSize: 10,
+        },
+        splitLine: { show: false },
+        gridIndex: 0,
+      },
+    ],
+    yAxis: [
+      {
+        // Main price scale
+        name: "Price",
+        scale: true,
+        splitNumber: 5,
+        axisLine: { lineStyle: { color: textColor } },
+        axisLabel: {
+          color: textColor,
+          padding: [0, 10, 0, 0], // Reduce padding to minimize space usage
+          align: "right",
+          formatter: (value: number) => {
+            return value.toFixed(0); // Round to whole numbers to save space
           },
-        ]
-      : [
-          {
-            type: "category",
-            boundaryGap: false,
-            axisLine: { lineStyle: { color: textColor } },
-            axisLabel: {
-              color: textColor,
-              formatter: (value: string) => {
-                // Format to show compact date and time
-                if (value.includes(" ")) {
-                  // If it has both date and time (contains space)
-                  const parts = value.split(" ");
-                  // Return MM-DD HH:MM format
-                  return `${parts[0].substring(5)} ${parts[1]}`;
-                }
-                return value.slice(5); // Just show MM-DD for dates without time
-              },
-              rotate: 30,
-              fontSize: 10,
-            },
-            splitLine: { show: false },
-          },
-        ],
-    yAxis: showVolume
-      ? [
-          {
-            scale: true,
-            splitNumber: 5,
-            axisLine: { lineStyle: { color: textColor } },
-            axisLabel: { color: textColor },
-            splitLine: {
-              show: true,
-              lineStyle: { color: theme === "dark" ? "#333" : "#eee" },
-            },
-            gridIndex: 0,
-          },
-          {
-            scale: true,
-            splitNumber: 2,
-            axisLine: { lineStyle: { color: textColor } },
-            axisLabel: { color: textColor, inside: false },
-            splitLine: { show: false },
-            gridIndex: 1,
-          },
-        ]
-      : [
-          {
-            scale: true,
-            splitNumber: 5,
-            axisLine: { lineStyle: { color: textColor } },
-            axisLabel: { color: textColor },
-            splitLine: {
-              show: true,
-              lineStyle: { color: theme === "dark" ? "#333" : "#eee" },
-            },
-          },
-        ],
+        },
+        splitLine: {
+          show: true,
+          lineStyle: { color: theme === "dark" ? "#333" : "#eee" },
+        },
+        position: "right",
+        gridIndex: 0,
+      },
+      {
+        // Volume scale (hidden but used for data scaling)
+        name: "Volume",
+        scale: true,
+        show: false,
+        gridIndex: 0,
+        // Ensure volume bars occupy bottom 20% of the main chart area
+        max: (value: any) => {
+          return value.max * 5; // This will make the volume bars take up ~20% of the chart height
+        },
+        axisPointer: {
+          show: false,
+        },
+      },
+    ],
     dataZoom: [
       {
+        // Inside scroll and zoom
         type: "inside",
-        xAxisIndex: showVolume ? [0, 1] : [0],
-        start: 0,
+        xAxisIndex: [0],
+        start: 60,
         end: 100,
+        zoomLock: false,
+      },
+      {
+        // Bottom slider
+        show: true,
+        realtime: true,
+        type: "slider",
+        xAxisIndex: [0],
+        bottom: 10,
+        height: 40,
+        left: "0%",
+        right: "2%",
+        start: 60,
+        end: 100,
+        brushSelect: false,
+        emphasis: {
+          handleStyle: {
+            borderWidth: 2,
+            borderColor: theme === "dark" ? "#aaa" : "#555",
+          },
+          handleLabel: {
+            show: false,
+          },
+        },
+        dataBackground: {
+          lineStyle: {
+            color: theme === "dark" ? "#777" : "#aaa",
+            width: 1,
+          },
+          areaStyle: {
+            color: theme === "dark" ? "#444" : "#eee",
+            opacity: 1,
+          },
+        },
+        textStyle: {
+          color: textColor,
+          fontSize: 11,
+        },
+        handleIcon:
+          "M8.2,13.6V3.9H6.3v9.7H3.1v14.9h3.3v9.7h1.8v-9.7h3.3V13.6H8.2z",
+        handleSize: "100%",
+        handleStyle: {
+          color: theme === "dark" ? "#999" : "#fff",
+          borderColor: theme === "dark" ? "#666" : "#ACB8D1",
+          borderWidth: 1,
+          shadowBlur: 2,
+          shadowColor: "rgba(0, 0, 0, 0.2)",
+        },
+        borderColor: theme === "dark" ? "#555" : "#ddd",
+        backgroundColor: theme === "dark" ? "#333" : "#f7f7f7",
+        fillerColor:
+          theme === "dark" ? "rgba(80,80,80,0.8)" : "rgba(220,220,220,0.8)",
+        selectedDataBackground: {
+          lineStyle: {
+            color: theme === "dark" ? "#999" : "#888",
+            width: 1,
+          },
+          areaStyle: {
+            color: theme === "dark" ? "#666" : "#ddd",
+            opacity: 1,
+          },
+        },
       },
     ],
     series: [
@@ -364,12 +408,20 @@ export const generateNiftyChartOptions = (
         },
         xAxisIndex: 0,
         yAxisIndex: 0,
+        z: 10, // Higher z value to ensure candlesticks are on top
       },
     ] as any[],
   };
 
   // Add volume series if required
   if (showVolume && volumeData.length > 0) {
+    // Find the min and max volume to scale properly
+    const minVolume = Math.min(...volumeData.filter((vol) => vol > 0));
+    const maxVolume = Math.max(...volumeData);
+
+    // Calculate volumes as percentage of max for display
+    // This will scale volume bars to fit at the bottom of the chart
+
     (baseOption.series as any[]).push({
       name: "Volume",
       type: "bar",
@@ -378,10 +430,20 @@ export const generateNiftyChartOptions = (
         y: "volume",
       },
       itemStyle: {
-        color: "#999",
+        color: (params: any) => {
+          // Match volume bar color to candlestick color
+          const index = params.dataIndex;
+          const item = chartData[index];
+          return item.close >= item.open
+            ? "rgba(20, 177, 67, 0.3)"
+            : "rgba(239, 35, 42, 0.3)";
+        },
       },
-      xAxisIndex: 1,
-      yAxisIndex: 1,
+      barWidth: "70%",
+      barCategoryGap: "10%",
+      xAxisIndex: 0,
+      yAxisIndex: 1, // Use the hidden volume axis
+      z: 1, // Lower z value to ensure volume is below candlesticks
     });
   }
 

@@ -9,18 +9,17 @@ import {
 } from "lucide-react";
 import { NiftyChartOptions } from "../../types/index";
 
-interface ChartControlsProps {
+export interface ChartControlsProps {
   options: NiftyChartOptions;
-  selectedIndicators: { id: string; active: boolean }[];
+  selectedIndicators: string[];
   isCalculating: boolean;
-  timeframe: number;
-  toggleVolume: () => void;
-  toggleTheme: () => void;
-  toggleIndicatorsModal: () => void;
-  toggleAddIndicatorModal: () => void;
-  handleCalculateIndicators: () => void;
-  refetch: () => void;
-  changeTimeframe: (days: number) => void;
+  timeframe: string;
+  onToggleVolume: () => void;
+  onToggleTheme: () => void;
+  onToggleIndicator: () => void;
+  onCalculateIndicators: () => void;
+  onTimeframeChange: (timeframe: string) => void;
+  onRefreshData: () => void;
 }
 
 const ChartControls: React.FC<ChartControlsProps> = ({
@@ -28,101 +27,100 @@ const ChartControls: React.FC<ChartControlsProps> = ({
   selectedIndicators,
   isCalculating,
   timeframe,
-  toggleVolume,
-  toggleTheme,
-  toggleIndicatorsModal,
-  handleCalculateIndicators,
-  refetch,
-  changeTimeframe,
+  onToggleVolume,
+  onToggleTheme,
+  onToggleIndicator,
+  onCalculateIndicators,
+  onTimeframeChange,
+  onRefreshData,
 }) => {
   return (
-    <div className="mb-2 flex justify-between items-center py-1 px-1 border-b border-gray-200">
-      <div className="flex items-center space-x-1">
-        {/* Chart Options */}
-        <div className="flex space-x-1 mr-3 items-center">
-          <button
-            onClick={toggleVolume}
-            className="rounded p-1.5 text-gray-600 hover:bg-gray-100 hover:text-gray-800 transition-colors"
-            title={options.showVolume ? "Hide Volume" : "Show Volume"}
-          >
-            <BarChart2 size={18} />
-          </button>
-
-          <button
-            onClick={toggleTheme}
-            className="rounded p-1.5 text-gray-600 hover:bg-gray-100 hover:text-gray-800 transition-colors"
-            title={
-              options.theme === "dark"
-                ? "Switch to Light Theme"
-                : "Switch to Dark Theme"
-            }
-          >
-            {options.theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
-          </button>
-        </div>
-
-        {/* Separator */}
-        <div className="h-6 w-px bg-gray-300 mx-1"></div>
-
-        {/* Indicators */}
+    <div className="flex items-center justify-between py-1 px-2 mb-1">
+      <div className="flex items-center space-x-2">
+        {/* Volume Toggle */}
         <button
-          onClick={toggleIndicatorsModal}
-          className={`flex items-center rounded-md px-2 py-1 text-sm font-medium ${
-            selectedIndicators.length > 0
-              ? "bg-green-500 text-white hover:bg-green-600"
-              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-          } transition-colors`}
+          className={`flex items-center p-1 text-xs rounded hover:bg-gray-200 transition-colors ${
+            options.showVolume ? "bg-blue-100 text-blue-700" : ""
+          }`}
+          onClick={onToggleVolume}
+          title="Toggle Volume Chart"
         >
-          <Activity size={15} className="mr-1" />
+          <BarChart2 size={14} className="mr-1" />
+          Volume
+        </button>
+
+        {/* Theme Toggle */}
+        <button
+          className="p-1 rounded hover:bg-gray-200 transition-colors"
+          onClick={onToggleTheme}
+          title={`Switch to ${
+            options.theme === "dark" ? "Light" : "Dark"
+          } Theme`}
+        >
+          {options.theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+        </button>
+
+        <div className="h-5 border-r border-gray-300 mx-1"></div>
+
+        {/* Indicators Toggle */}
+        <button
+          className={`flex items-center p-1 text-xs rounded hover:bg-gray-200 transition-colors ${
+            selectedIndicators.length > 0 ? "bg-blue-100 text-blue-700" : ""
+          }`}
+          onClick={onToggleIndicator}
+          title="Toggle Indicators"
+        >
+          <Activity size={14} className="mr-1" />
           Indicators
           {selectedIndicators.length > 0 && (
-            <span className="ml-1.5 bg-white bg-opacity-20 px-1.5 py-0.5 rounded-full text-xs">
+            <span className="ml-1 px-1.5 py-0.5 bg-blue-500 text-white text-xs rounded-full">
               {selectedIndicators.length}
             </span>
           )}
         </button>
 
+        {/* Calculate Indicators Button - Only show if indicators are selected */}
         {selectedIndicators.length > 0 && (
           <button
-            onClick={handleCalculateIndicators}
+            className={`flex items-center p-1 text-xs rounded hover:bg-gray-200 transition-colors ${
+              isCalculating ? "opacity-50 cursor-not-allowed" : ""
+            }`}
+            onClick={onCalculateIndicators}
             disabled={isCalculating}
-            className="flex items-center rounded-md bg-green-500 px-2 py-1 text-sm font-medium text-white hover:bg-green-600 disabled:opacity-50 transition-colors"
+            title="Calculate Indicators"
           >
-            <Calculator size={15} className="mr-1" />
+            <Calculator size={14} className="mr-1" />
             {isCalculating ? "Calculating..." : "Calculate"}
           </button>
         )}
-
-        <button
-          onClick={refetch}
-          className="flex items-center rounded-md bg-gray-100 px-2 py-1 text-sm font-medium text-gray-700 hover:bg-gray-200 transition-colors"
-        >
-          <RefreshCw size={15} className="mr-1" />
-          Refresh
-        </button>
       </div>
 
-      {/* Time Range Controls */}
-      <div className="flex rounded-md bg-gray-100 p-0.5">
-        {[
-          { days: 7, label: "7D" },
-          { days: 30, label: "1M" },
-          { days: 90, label: "3M" },
-          { days: 180, label: "6M" },
-          { days: 365, label: "1Y" },
-        ].map(({ days, label }) => (
-          <button
-            key={days}
-            onClick={() => changeTimeframe(days)}
-            className={`px-2 py-0.5 text-xs font-medium rounded-md ${
-              timeframe === days
-                ? "bg-white text-gray-800 shadow-sm"
-                : "text-gray-600 hover:text-gray-800"
-            } transition-colors`}
-          >
-            {label}
-          </button>
-        ))}
+      <div className="flex items-center">
+        {/* Refresh Data Button */}
+        <button
+          className="p-1 rounded mr-2 hover:bg-gray-200 transition-colors"
+          onClick={onRefreshData}
+          title="Refresh Data"
+        >
+          <RefreshCw size={16} />
+        </button>
+
+        {/* Timeframe Buttons */}
+        <div className="flex border rounded overflow-hidden">
+          {["7D", "1M", "3M", "6M", "1Y"].map((tf) => (
+            <button
+              key={tf}
+              className={`px-2 py-0.5 text-xs ${
+                timeframe === tf
+                  ? "bg-blue-500 text-white"
+                  : "hover:bg-gray-200"
+              }`}
+              onClick={() => onTimeframeChange(tf)}
+            >
+              {tf}
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );

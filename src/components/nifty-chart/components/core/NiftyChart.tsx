@@ -30,80 +30,27 @@ const NiftyChart: React.FC<NiftyChartProps> = ({
       console.log("Received data sample:", data.slice(0, 3));
     }
 
-    // Get base options from the chart utils
+    // Get chart options from the utils
     const baseOptions = generateNiftyChartOptions(data, options);
 
-    // Filter out the slider dataZoom and keep only the inside dataZoom
-    const dataZoom = Array.isArray(baseOptions.dataZoom)
-      ? baseOptions.dataZoom
-          .filter((zoom) => zoom.type !== "slider") // Remove the slider zoom bar
-          .map((zoom) => {
-            if (zoom.type === "inside") {
-              return {
-                ...zoom,
-                zoomOnMouseWheel: true,
-                moveOnMouseMove: true,
-                // Make zoom much slower (higher value = slower zoom)
-                zoomRate: 200,
-                // Minimum zoom size - prevent zooming in too far
-                minSpan: 5,
-                // Smoothness of zooming
-                throttle: 10,
-              };
-            }
-            return zoom;
-          })
-      : [];
-
-    // If no inside dataZoom was found, add a new one
-    const hasInsideZoom =
-      Array.isArray(dataZoom) &&
-      dataZoom.some((zoom) => zoom.type === "inside");
-
-    // Get xAxisIndex from the existing dataZoom if available
-    let xAxisIndex: number | number[] = 0;
-    if (
-      Array.isArray(baseOptions.dataZoom) &&
-      baseOptions.dataZoom.length > 0
-    ) {
-      const firstZoom = baseOptions.dataZoom[0];
-      if (firstZoom && "xAxisIndex" in firstZoom) {
-        xAxisIndex = firstZoom.xAxisIndex as number | number[];
-      }
-    }
-
-    if (!hasInsideZoom) {
-      dataZoom.push({
-        type: "inside",
-        zoomOnMouseWheel: true,
-        moveOnMouseMove: true,
-        zoomRate: 200,
-        minSpan: 5,
-        throttle: 10,
-        xAxisIndex: xAxisIndex,
-      });
-    }
-
-    // Apply the customized dataZoom configuration
-    const customOptions = {
-      ...baseOptions,
-      dataZoom: dataZoom,
-    };
-
-    setChartOptions(customOptions);
+    // Use the options directly without modification
+    setChartOptions(baseOptions);
   }, [data, options]);
 
   // Custom height/width from style prop should override Tailwind classes
   const customStyle: React.CSSProperties = {
-    height: style.height || "600px",
-    width: style.width,
+    height: style.height || "calc(100vh - 50px)", // Full viewport height minus some space for header/navigation
+    width: style.width || "100%",
+    margin: 0,
+    padding: 0,
+    overflow: "hidden",
   };
 
   if (loading) {
     return (
       <div
         className={twMerge(
-          "flex h-[600px] w-full items-center justify-center bg-gray-50 text-gray-600",
+          "flex h-[calc(100vh-50px)] w-full items-center justify-center bg-gray-50 text-gray-600",
           className
         )}
         style={customStyle}
@@ -120,7 +67,7 @@ const NiftyChart: React.FC<NiftyChartProps> = ({
     return (
       <div
         className={twMerge(
-          "flex h-[600px] w-full items-center justify-center bg-gray-50 text-gray-600",
+          "flex h-[calc(100vh-50px)] w-full items-center justify-center bg-gray-50 text-gray-600",
           className
         )}
         style={customStyle}
@@ -134,13 +81,15 @@ const NiftyChart: React.FC<NiftyChartProps> = ({
   }
 
   return (
-    <ReactECharts
-      option={chartOptions}
-      style={customStyle}
-      className={twMerge("h-[600px] w-full", className)}
-      notMerge={true}
-      lazyUpdate={true}
-    />
+    <div className="w-full h-full p-0 m-0">
+      <ReactECharts
+        option={chartOptions}
+        style={customStyle}
+        className={twMerge("h-[calc(100vh-50px)] w-full p-0 m-0", className)}
+        notMerge={true}
+        lazyUpdate={true}
+      />
+    </div>
   );
 };
 

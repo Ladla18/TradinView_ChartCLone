@@ -43,13 +43,34 @@ export const useNiftyData = ({
 
         // Transform API data to our format
         const formattedData: NiftyDataPoint[] = apiData.map((item) => {
-          const dateTime = new Date(item.time);
-          const date = dateTime.toISOString().split("T")[0];
-          const time = dateTime.toTimeString().split(" ")[0].substring(0, 5); // Format as HH:MM
+          // Extract time directly from the API time string
+          // Format: "Fri, 12 Jan 2024 15:30:00 GMT"
+          const timeString = item.time;
+
+          // Use a UTC date object to avoid timezone conversion
+          const dateObj = new Date(timeString);
+
+          // Extract date parts in UTC
+          const year = dateObj.getUTCFullYear();
+          const month = (dateObj.getUTCMonth() + 1).toString().padStart(2, "0");
+          const day = dateObj.getUTCDate().toString().padStart(2, "0");
+          const date = `${year}-${month}-${day}`;
+
+          // Extract hours and minutes in UTC
+          const hours = dateObj.getUTCHours().toString().padStart(2, "0");
+          const minutes = dateObj.getUTCMinutes().toString().padStart(2, "0");
+          const time = `${hours}:${minutes}`;
+
+          // Log sample time conversion for debugging
+          if (apiData.indexOf(item) === 0) {
+            console.log("Original time from API:", timeString);
+            console.log("Extracted UTC time:", time);
+            console.log("Extracted UTC date:", date);
+          }
 
           return {
-            date: date,
-            time: time,
+            date,
+            time,
             open: item.open,
             high: item.high,
             low: item.low,
