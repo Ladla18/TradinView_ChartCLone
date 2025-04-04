@@ -24,7 +24,6 @@ interface NiftyChartContainerProps {
 
 const NiftyChartContainer: React.FC<NiftyChartContainerProps> = ({
   initialOptions = {},
-  days = 30,
   className = "",
   style = {},
   apiUrl = "https://dev.api.tusta.co/charts/get_csv_data",
@@ -46,6 +45,13 @@ const NiftyChartContainer: React.FC<NiftyChartContainerProps> = ({
   const initialHeights = useRef<{ main: number; indicators: number }>({
     main: 0,
     indicators: 0,
+  });
+  const [dataZoomState, setDataZoomState] = useState<{
+    start: number;
+    end: number;
+  }>({
+    start: 0,
+    end: 100,
   });
 
   const {
@@ -361,8 +367,9 @@ const NiftyChartContainer: React.FC<NiftyChartContainerProps> = ({
     setIsAddIndicatorModalOpen(false);
   };
 
-  const toggleAddIndicatorModal = () => {
-    setIsAddIndicatorModalOpen(!isAddIndicatorModalOpen);
+  // Add this handler function
+  const handleDataZoomChange = (values: { start: number; end: number }) => {
+    setDataZoomState(values);
   };
 
   // If there's an error, display it
@@ -415,6 +422,7 @@ const NiftyChartContainer: React.FC<NiftyChartContainerProps> = ({
           options={options}
           loading={chartLoading}
           style={{ height: "100%" }}
+          onDataZoomChange={handleDataZoomChange}
         />
       </div>
 
@@ -450,6 +458,7 @@ const NiftyChartContainer: React.FC<NiftyChartContainerProps> = ({
             dates={data.map((item: NiftyDataPoint) =>
               item.time ? `${item.date} ${item.time}` : item.date
             )}
+            dataZoom={dataZoomState}
           />
         </div>
       )}

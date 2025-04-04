@@ -14,7 +14,6 @@ interface UseNiftyDataReturn {
 }
 
 export const useNiftyData = ({
-  days = 0,
   apiUrl = "https://dev.api.tusta.co/charts/get_csv_data",
 }: UseNiftyDataProps = {}): UseNiftyDataReturn => {
   const [data, setData] = useState<NiftyDataPoint[]>([]);

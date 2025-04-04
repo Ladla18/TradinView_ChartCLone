@@ -9,6 +9,7 @@ interface IndicatorChartProps {
   schema: any;
   theme?: "light" | "dark";
   compact?: boolean;
+  dataZoom?: { start: number; end: number };
 }
 
 const IndicatorChart: React.FC<IndicatorChartProps> = ({
@@ -19,6 +20,7 @@ const IndicatorChart: React.FC<IndicatorChartProps> = ({
   schema,
   theme = "light",
   compact = false,
+  dataZoom,
 }) => {
   const chartRef = useRef<ReactECharts>(null);
 
@@ -51,6 +53,18 @@ const IndicatorChart: React.FC<IndicatorChartProps> = ({
   if (Object.keys(data).every((key) => !data[key] || data[key].length === 0)) {
     return null;
   }
+
+  // Update chart when dataZoom changes
+  useEffect(() => {
+    const chart = chartRef.current?.getEchartsInstance();
+    if (chart && dataZoom) {
+      chart.dispatchAction({
+        type: "dataZoom",
+        start: dataZoom.start,
+        end: dataZoom.end,
+      });
+    }
+  }, [dataZoom]);
 
   // Handle chart resize
   useEffect(() => {
@@ -438,6 +452,22 @@ const IndicatorChart: React.FC<IndicatorChartProps> = ({
           }
         : null,
     ].filter(Boolean),
+    dataZoom: [
+      {
+        type: "inside",
+        start: dataZoom?.start ?? 0,
+        end: dataZoom?.end ?? 100,
+        minValueSpan: 10,
+        zoomLock: true, // Lock zoom to sync with main chart
+      },
+      {
+        show: false,
+        type: "slider",
+        start: dataZoom?.start ?? 0,
+        end: dataZoom?.end ?? 100,
+        minValueSpan: 10,
+      },
+    ],
   };
 
   return (
@@ -450,7 +480,7 @@ const IndicatorChart: React.FC<IndicatorChartProps> = ({
         ref={chartRef}
         option={option}
         className="w-full h-full"
-        notMerge={true}
+        notMerge={false}
         lazyUpdate={false}
         style={{ height: "100%", width: "100%" }}
       />

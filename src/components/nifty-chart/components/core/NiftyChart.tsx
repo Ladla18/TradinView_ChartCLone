@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import ReactECharts from "echarts-for-react";
 import { NiftyDataPoint, NiftyChartOptions } from "../../types/index";
 import { generateNiftyChartOptions } from "../../utils/chartUtils";
@@ -10,6 +10,7 @@ interface NiftyChartProps {
   loading?: boolean;
   className?: string;
   style?: React.CSSProperties;
+  onDataZoomChange?: (values: { start: number; end: number }) => void;
 }
 
 const NiftyChart: React.FC<NiftyChartProps> = ({
@@ -18,10 +19,12 @@ const NiftyChart: React.FC<NiftyChartProps> = ({
   loading = false,
   className = "",
   style = {},
+  onDataZoomChange,
 }) => {
   const [chartOptions, setChartOptions] = useState(
     generateNiftyChartOptions(data, options)
   );
+  const chartRef = useRef<ReactECharts>(null);
 
   // Update options when data or options change
   useEffect(() => {
@@ -36,6 +39,36 @@ const NiftyChart: React.FC<NiftyChartProps> = ({
     // Use the options directly without modification
     setChartOptions(baseOptions);
   }, [data, options]);
+
+  // Handle zoom events from both slider and mouse wheel
+  useEffect(() => {
+    const chart = chartRef.current?.getEchartsInstance();
+    if (chart) {
+      // Handle all types of zoom events
+      const handleZoom = (params: any) => {
+        if (params.batch) {
+          // Handle batch updates (usually from mouse wheel)
+          const lastBatch = params.batch[params.batch.length - 1];
+          onDataZoomChange?.({
+            start: lastBatch.start,
+            end: lastBatch.end,
+          });
+        } else {
+          // Handle single updates (usually from slider)
+          onDataZoomChange?.({
+            start: params.start,
+            end: params.end,
+          });
+        }
+      };
+
+      chart.on("datazoom", handleZoom);
+
+      return () => {
+        chart.off("datazoom", handleZoom);
+      };
+    }
+  }, [onDataZoomChange]);
 
   // Custom height/width from style prop should override Tailwind classes
   const customStyle: React.CSSProperties = {
@@ -88,6 +121,7 @@ const NiftyChart: React.FC<NiftyChartProps> = ({
         className={twMerge("h-[calc(100vh-50px)] w-full p-0 m-0", className)}
         notMerge={true}
         lazyUpdate={true}
+        ref={chartRef}
       />
     </div>
   );

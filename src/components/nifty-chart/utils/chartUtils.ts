@@ -19,10 +19,7 @@ export const generateNiftyChartOptions = (
   // Use data directly as received from API - no sorting needed
   const chartData = data;
 
-  // Create date-time labels for x-axis
-  const dateTimeLabels = chartData.map((item) =>
-    item.time ? `${item.date} ${item.time}` : item.date
-  );
+
 
   // Prepare data for candlestick chart - format should be [open, close, low, high]
   const candlestickData = chartData.map((item) => [
@@ -415,9 +412,7 @@ export const generateNiftyChartOptions = (
 
   // Add volume series if required
   if (showVolume && volumeData.length > 0) {
-    // Find the min and max volume to scale properly
-    const minVolume = Math.min(...volumeData.filter((vol) => vol > 0));
-    const maxVolume = Math.max(...volumeData);
+
 
     // Calculate volumes as percentage of max for display
     // This will scale volume bars to fit at the bottom of the chart

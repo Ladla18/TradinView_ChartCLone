@@ -1,13 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import IndicatorChart from "./IndicatorChart";
 import { IndicatorSchema } from "../../types/index";
-import {
-  X,
-  Minimize2,
-  ChevronUp,
-  ChevronDown,
-  GripVertical,
-} from "lucide-react";
+import { ChevronUp, ChevronDown, GripVertical } from "lucide-react";
 
 interface IndicatorChartsProps {
   calculationResults: {
@@ -18,6 +12,7 @@ interface IndicatorChartsProps {
   indicatorSchema: IndicatorSchema | null;
   theme?: "light" | "dark";
   dates: string[];
+  dataZoom?: { start: number; end: number };
 }
 
 const IndicatorCharts: React.FC<IndicatorChartsProps> = ({
@@ -25,6 +20,7 @@ const IndicatorCharts: React.FC<IndicatorChartsProps> = ({
   indicatorSchema,
   theme = "light",
   dates,
+  dataZoom,
 }) => {
   const [minimizedIndicators, setMinimizedIndicators] = useState<string[]>([]);
   const [indicatorHeights, setIndicatorHeights] = useState<
@@ -248,12 +244,13 @@ const IndicatorCharts: React.FC<IndicatorChartsProps> = ({
                 >
                   <IndicatorChart
                     indicator={result.indicator}
-                    indicatorName="" // Empty as we're showing the title in the header
+                    indicatorName=""
                     data={filteredData}
                     dates={dates}
                     schema={schema}
                     theme={theme}
                     compact={true}
+                    dataZoom={dataZoom}
                   />
                 </div>
               )}
