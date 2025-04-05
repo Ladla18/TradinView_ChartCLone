@@ -9,6 +9,14 @@ export const generateNiftyChartOptions = (
   data: NiftyDataPoint[],
   options: NiftyChartOptions = {}
 ): EChartsOption => {
+  console.log("[chartUtils] Generating chart options with:", {
+    dataPoints: data.length,
+    hasVolume: options.showVolume,
+    theme: options.theme,
+    selectedIndicators: options.indicators?.length || 0,
+    calculationResults: options.calculationResults?.length || 0,
+  });
+
   const {
     title = "Nifty 50 Index",
     showVolume = true,
@@ -16,10 +24,8 @@ export const generateNiftyChartOptions = (
     indicators = [],
   } = options;
 
-  // Use data directly as received from API - no sorting needed
+  // Use data directly as received from API
   const chartData = data;
-
-
 
   // Prepare data for candlestick chart - format should be [open, close, low, high]
   const candlestickData = chartData.map((item) => [
@@ -45,18 +51,31 @@ export const generateNiftyChartOptions = (
       if (result.position === "on_chart") {
         // If the indicators list is not empty, check if this indicator is active
         if (indicators && indicators.length > 0) {
-          return indicators.some(
+          const isActive = indicators.some(
             (ind: { id: string; active: boolean }) =>
               ind.id === result.indicator && ind.active
           );
+          console.log(
+            `[chartUtils] Checking indicator ${result.indicator}: ${
+              isActive ? "active" : "inactive"
+            }`
+          );
+          return isActive;
         }
-        // If there's no indicator list or it's empty, include all on-chart indicators
         return true;
       }
       return false;
     }) || [];
 
-  console.log("On-chart indicators for main chart:", onChartIndicators);
+  console.log("[chartUtils] Filtered on-chart indicators:", {
+    total: onChartIndicators.length,
+    indicators: onChartIndicators.map((ind) => ({
+      name: ind.indicator,
+      fields: Object.keys(ind.data).filter(
+        (k) => k !== "timestamps" && k !== "timestamp"
+      ),
+    })),
+  });
 
   // Prepare dataset with chart data and indicators
   const sourceData = chartData.map((item, index) => {
@@ -77,10 +96,11 @@ export const generateNiftyChartOptions = (
           key !== "timestamp" &&
           Array.isArray(values)
         ) {
-          const dataIndex = values.length - chartData.length + index;
-          if (dataIndex >= 0 && dataIndex < values.length) {
+          // Instead of calculating offset, just use the same index
+          // This will align indicator data with chart data from index 0
+          if (index < values.length) {
             const fieldName = `${indicatorResult.indicator}_${key}`;
-            dataPoint[fieldName] = values[dataIndex];
+            dataPoint[fieldName] = values[index];
           }
         }
       });
@@ -172,24 +192,60 @@ export const generateNiftyChartOptions = (
           }
         }
 
-        // Add indicator values if any
+        // Group indicator values by indicator type
+        const indicatorGroups: { [key: string]: any[] } = {};
         params.forEach((param: any) => {
           if (
             param.seriesType === "line" &&
             param.seriesName !== "Volume" &&
             param.seriesName !== "Nifty 50"
           ) {
-            // Extract the real indicator name from the series name (removing field suffix)
-            const seriesNameParts = param.seriesName.split("_");
-            const indicatorName = seriesNameParts[0];
-            const fieldName =
-              seriesNameParts.length > 1 ? seriesNameParts[1] : "";
+            // Split the series name to get indicator name and field
+            const parts = param.seriesName.split("_");
+            const indicatorName = parts[0];
+            if (!indicatorGroups[indicatorName]) {
+              indicatorGroups[indicatorName] = [];
+            }
+            indicatorGroups[indicatorName].push(param);
+          }
+        });
 
-            const displayName = fieldName
-              ? `${indicatorName} (${fieldName})`
-              : indicatorName;
+        // Add indicator values grouped by indicator
+        Object.entries(indicatorGroups).forEach(([indicatorName, params]) => {
+          tooltipContent += `<div style="margin-top: 4px; font-weight: bold">${indicatorName}:</div>`;
 
-            // Get indicator value from either dataset format or regular format
+          // Sort params to ensure consistent order (lower -> middle -> upper)
+          params.sort((a, b) => {
+            const order = ["lower_band", "middle_band", "upper_band", "value"];
+            const aField = a.seriesName.split("_").slice(1).join("_");
+            const bField = b.seriesName.split("_").slice(1).join("_");
+            return order.indexOf(aField) - order.indexOf(bField);
+          });
+
+          params.forEach((param: any) => {
+            // Get the field name by removing the indicator prefix
+            const fieldName = param.seriesName.split("_").slice(1).join("_");
+
+            // Get proper display name for the field
+            let displayName: string;
+            if (fieldName === "value") {
+              displayName = "Value";
+            } else if (fieldName === "upper_band") {
+              displayName = "Upper Band";
+            } else if (fieldName === "middle_band") {
+              displayName = "Middle Band";
+            } else if (fieldName === "lower_band") {
+              displayName = "Lower Band";
+            } else {
+              // For any other fields, capitalize each word
+              displayName = fieldName
+                .split("_")
+                .map(
+                  (word: string) => word.charAt(0).toUpperCase() + word.slice(1)
+                )
+                .join(" ");
+            }
+
             let value;
             if (param.value && typeof param.value === "object") {
               value = param.value[param.seriesName];
@@ -199,10 +255,12 @@ export const generateNiftyChartOptions = (
 
             tooltipContent += `<div style="color:${
               param.color
-            }">${displayName}: ${
+            }; padding-left: 8px;">
+              ${displayName}: ${
               typeof value === "number" ? value.toFixed(2) : "N/A"
-            }</div>`;
-          }
+            }
+            </div>`;
+          });
         });
 
         return tooltipContent;
@@ -289,10 +347,10 @@ export const generateNiftyChartOptions = (
         axisLine: { lineStyle: { color: textColor } },
         axisLabel: {
           color: textColor,
-          padding: [0, 10, 0, 0], // Reduce padding to minimize space usage
+          padding: [0, 10, 0, 0],
           align: "right",
           formatter: (value: number) => {
-            return value.toFixed(0); // Round to whole numbers to save space
+            return value.toFixed(0);
           },
         },
         splitLine: {
@@ -301,6 +359,13 @@ export const generateNiftyChartOptions = (
         },
         position: "right",
         gridIndex: 0,
+        // Add scale limits to ensure all data is visible
+        min: (value: any) => {
+          return Math.floor(value.min * 0.995); // Add 0.5% padding below
+        },
+        max: (value: any) => {
+          return Math.ceil(value.max * 1.005); // Add 0.5% padding above
+        },
       },
       {
         // Volume scale (hidden but used for data scaling)
@@ -412,8 +477,6 @@ export const generateNiftyChartOptions = (
 
   // Add volume series if required
   if (showVolume && volumeData.length > 0) {
-
-
     // Calculate volumes as percentage of max for display
     // This will scale volume bars to fit at the bottom of the chart
 
@@ -444,69 +507,183 @@ export const generateNiftyChartOptions = (
 
   // Add on-chart indicators as line series
   const colors = [
-    "#1f77b4",
-    "#ff7f0e",
-    "#2ca02c",
-    "#d62728",
-    "#9467bd",
-    "#8c564b",
-    "#e377c2",
-    "#7f7f7f",
-    "#bcbd22",
-    "#17becf",
+    "#1f77b4", // blue
+    "#ff7f0e", // orange
+    "#2ca02c", // green
+    "#d62728", // red
+    "#9467bd", // purple
+    "#8c564b", // brown
+    "#e377c2", // pink
+    "#7f7f7f", // gray
+    "#bcbd22", // yellow-green
+    "#17becf", // cyan
   ];
 
   let colorIndex = 0;
 
+  // Add band indicator colors
+  const bandColors = {
+    bollinger_band: {
+      upper_band: "#2196F3", // Blue
+      middle_band: "#FFC107", // Amber
+      lower_band: "#4CAF50", // Green
+    },
+    donchian_channel: {
+      upper_band: "#E91E63", // Pink
+      middle_band: "#9C27B0", // Purple
+      lower_band: "#673AB7", // Deep Purple
+    },
+    keltner_channel: {
+      upper_band: "#FF5722", // Deep Orange
+      middle_band: "#795548", // Brown
+      lower_band: "#607D8B", // Blue Grey
+    },
+  };
+
+  // Helper function to get indicator style
+  const getIndicatorStyle = (
+    indicatorName: string,
+    fieldName: string,
+    color: string
+  ) => {
+    // Default style
+    let style: any = {
+      type: "line",
+      symbol: "none",
+      smooth: true,
+      lineStyle: {
+        color: color,
+        width: 2,
+      },
+      sampling: "average",
+      animation: false,
+      scale: true,
+    };
+
+    // Special styling for band-type indicators
+    if (
+      ["bollinger_band", "donchian_channel", "keltner_channel"].includes(
+        indicatorName
+      )
+    ) {
+      const alpha = theme === "dark" ? 0.1 : 0.05;
+      const bandColor =
+        bandColors[indicatorName as keyof typeof bandColors][
+          fieldName as keyof (typeof bandColors)["bollinger_band"]
+        ] || color;
+
+      style.lineStyle.color = bandColor;
+
+      if (
+        fieldName.includes("upper_band") ||
+        fieldName.includes("lower_band")
+      ) {
+        style.lineStyle.width = 1;
+        style.lineStyle.type = "dashed";
+
+        // Add area style for bands
+        if (fieldName.includes("upper_band")) {
+          style.areaStyle = {
+            color: bandColor,
+            opacity: alpha,
+            origin: "start",
+          };
+        }
+      } else if (fieldName.includes("middle_band")) {
+        style.lineStyle.width = 1;
+      }
+    }
+
+    return style;
+  };
+  // Add on-chart indicators as line series
   onChartIndicators.forEach((indicatorResult: IndicatorCalculationResult) => {
+    // Get base color for this indicator
+    const baseColor = colors[colorIndex % colors.length];
+    colorIndex++;
+
     // Filter out fields with all null values
     const fieldsWithData = Object.entries(indicatorResult.data)
       .filter(([key, values]) => {
-        // Skip timestamp fields
         if (key === "timestamps" || key === "timestamp") return false;
-
-        // Check if this field has any non-null values
-        return (
+        const hasValidData =
           values &&
           Array.isArray(values) &&
-          values.some((v) => v !== null && v !== undefined)
+          values.some((v) => v !== null && v !== undefined);
+        console.log(
+          `[chartUtils] Checking field ${key} for ${
+            indicatorResult.indicator
+          }: ${hasValidData ? "has data" : "no valid data"}`
         );
+        return hasValidData;
       })
       .map(([key]) => key);
 
     console.log(
-      `Fields with actual data for ${indicatorResult.indicator}:`,
+      `[chartUtils] Fields with actual data for ${indicatorResult.indicator}:`,
       fieldsWithData
     );
 
+    // Sort fields to ensure proper rendering order (lower_band -> middle_band -> upper_band)
+    const sortedFields = [...fieldsWithData].sort((a, b) => {
+      const order = ["lower_band", "middle_band", "upper_band", "value"];
+      const aIndex = order.indexOf(a);
+      const bIndex = order.indexOf(b);
+      return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
+    });
+
     // Process each field that has data
-    fieldsWithData.forEach((key) => {
+    sortedFields.forEach((key) => {
       const seriesName = `${indicatorResult.indicator}_${key}`;
       const displayName =
         key === "value"
           ? indicatorResult.indicator
           : `${indicatorResult.indicator} (${key})`;
 
-      console.log(`Adding on-chart indicator series: ${displayName}`);
+      console.log(`[chartUtils] Adding series for ${displayName}:`, {
+        name: seriesName,
+        fieldKey: key,
+        dataPoints: indicatorResult.data[key]?.length || 0,
+      });
 
+      // Get style for this specific field
+      const style = getIndicatorStyle(
+        indicatorResult.indicator,
+        key,
+        baseColor
+      );
+
+      // For band indicators, we need to set up the area between bands
+      let areaStyle = style.areaStyle;
+      if (
+        key.includes("upper_band") &&
+        ["bollinger_band", "donchian_channel", "keltner_channel"].includes(
+          indicatorResult.indicator
+        )
+      ) {
+        // Find the corresponding lower band data
+        const lowerBandKey = "lower_band";
+        if (indicatorResult.data[lowerBandKey]) {
+          areaStyle = {
+            ...style.areaStyle,
+            origin: "auto",
+          };
+        }
+      }
+
+      // Add the series configuration with adjusted data
       (baseOption.series as any[]).push({
         name: seriesName,
-        type: "line",
+        ...style,
+        areaStyle: areaStyle,
         encode: {
           x: "time",
           y: seriesName,
         },
-        symbol: "none",
-        smooth: true,
-        lineStyle: {
-          color: colors[colorIndex % colors.length],
-          width: 2,
-        },
         xAxisIndex: 0,
         yAxisIndex: 0,
+        z: key.includes("middle_band") ? 2 : 1, // Middle band on top of other bands
       });
-
-      colorIndex++;
     });
   });
 

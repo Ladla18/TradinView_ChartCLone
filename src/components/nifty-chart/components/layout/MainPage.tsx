@@ -17,7 +17,8 @@ export default function MainPage() {
   const toggleTheme = () => {
     setTheme((prevTheme) => (prevTheme === "light" ? "dark" : "light"));
   };
-  
+  console.log(toggleTheme);
+
   // Handle indicator data updates from StrategyAssistant
   const handleIndicatorDataUpdate = (data: IndicatorCalculationResult[]) => {
     console.log("MainPage received indicator data:", data);

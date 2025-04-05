@@ -37,6 +37,14 @@ interface CalculationPayload {
   }[];
 }
 
+// Helper function to normalize field names
+const normalizeFieldName = (field: string): string => {
+  return field
+    .toLowerCase()
+    .replace(/\s+/g, "_") // Replace spaces with underscores
+    .replace(/[^a-z0-9_]/g, ""); // Remove any other special characters
+};
+
 export const useIndicators = ({
   apiUrl = "https://dev.api.tusta.co/charts/get_all_indicators",
   calculateApiUrl = "https://dev.api.tusta.co/charts/calculate_indicators_csv",
@@ -84,8 +92,19 @@ export const useIndicators = ({
   // Calculate indicators based on selected ones
   const calculateSelectedIndicators = async () => {
     if (!indicatorSchema || selectedIndicators.length === 0) {
+      console.log("[useIndicators] No indicators to calculate");
       return [];
     }
+
+    console.log("[useIndicators] Starting calculation with indicators:", {
+      total: selectedIndicators.length,
+      active: selectedIndicators.filter((ind) => ind.active).length,
+      indicators: selectedIndicators.map((ind) => ({
+        id: ind.id,
+        active: ind.active,
+        paramCount: Object.keys(ind.parameters).length,
+      })),
+    });
 
     setIsCalculating(true);
 
@@ -117,7 +136,17 @@ export const useIndicators = ({
           }),
       };
 
-      console.log("Calculating indicators with payload:", payload);
+      console.log("[useIndicators] Sending calculation request with payload:", {
+        symbol: payload.symbol,
+        timeframe: payload.timeframe,
+        indicatorCount: payload.indicators.length,
+        indicators: payload.indicators.map((ind) => ({
+          name: ind.name,
+          type: ind.type,
+          source: ind.source,
+          paramKeys: Object.keys(ind.parameters),
+        })),
+      });
 
       const response = await fetch(calculateApiUrl, {
         method: "POST",
@@ -134,36 +163,30 @@ export const useIndicators = ({
       }
 
       const result = await response.json();
-      console.log("Calculation API response:", result);
-
-      // Debug the response structure
-      if (result && result.indicators) {
-        console.log(
-          "Response indicators structure:",
-          Object.keys(result.indicators)
-        );
-        for (const key of Object.keys(result.indicators)) {
-          const data = result.indicators[key];
-          console.log(`Indicator ${key}:`, {
-            type: typeof data,
-            isArray: Array.isArray(data),
-            length: Array.isArray(data) ? data.length : 0,
-            sample: Array.isArray(data) && data.length > 0 ? data[0] : null,
-          });
-        }
-      }
+      console.log("[useIndicators] Received API response:", {
+        hasIndicators: !!result.indicators,
+        indicatorKeys: result.indicators ? Object.keys(result.indicators) : [],
+      });
 
       // Format and process the calculation results
       const formattedResults: IndicatorCalculationResult[] = [];
 
       // Process the API response to create formatted results
       if (result && typeof result === "object" && result.indicators) {
-        console.log("Processing indicators:", Object.keys(result.indicators));
+        console.log(
+          "[useIndicators] Processing indicators:",
+          Object.keys(result.indicators)
+        );
 
         selectedIndicators
           .filter((ind) => ind.active)
           .forEach((indicator) => {
             const schema = indicatorSchema[indicator.id];
+            console.log(`[useIndicators] Processing ${indicator.id}:`, {
+              hasSchema: !!schema,
+              position: schema?.position,
+              outputFields: schema?.output ? Object.keys(schema.output) : [],
+            });
 
             // Try to find the indicator data by either id or name
             let indicatorData = null;
@@ -185,22 +208,14 @@ export const useIndicators = ({
               }
             }
 
-            console.log(`Processing indicator ${indicator.id}:`, {
-              schemaExists: !!schema,
-              resultDataExists: !!indicatorData,
+            console.log(`[useIndicators] Found data for ${indicator.id}:`, {
+              dataFound: !!indicatorData,
               dataType: indicatorData ? typeof indicatorData : "undefined",
               isArray: Array.isArray(indicatorData),
-              dataLength: Array.isArray(indicatorData)
-                ? indicatorData.length
-                : 0,
+              length: Array.isArray(indicatorData) ? indicatorData.length : 0,
             });
 
-            // Only use data from API
             if (schema && indicatorData) {
-              // The API returns an array of objects with timestamp and value
-              // We need to transform this into a format our charts can use
-
-              // Initialize the transformed data with timestamps and all output fields from schema
               const transformedData: Record<string, number[]> = {};
 
               // Initialize all fields from schema output
@@ -216,29 +231,19 @@ export const useIndicators = ({
               // Handle different response formats
               if (Array.isArray(indicatorData)) {
                 console.log(
-                  `Processing array data for ${indicator.id}, length:`,
-                  indicatorData.length
+                  `[useIndicators] Processing array data for ${indicator.id}:`,
+                  {
+                    length: indicatorData.length,
+                    sampleFields:
+                      indicatorData.length > 0
+                        ? Object.keys(indicatorData[0])
+                        : [],
+                  }
                 );
-                if (indicatorData.length > 0) {
-                  console.log("Sample data item:", indicatorData[0]);
-
-                  // Get all fields from the first data item (excluding timestamp/timestamps)
-                  const dataFields = Object.keys(indicatorData[0]).filter(
-                    (field) => field !== "timestamp" && field !== "timestamps"
-                  );
-
-                  // Initialize any fields present in the data but not in the schema
-                  dataFields.forEach((field) => {
-                    if (!transformedData[field]) {
-                      transformedData[field] = [];
-                    }
-                  });
-                }
 
                 // Extract timestamps and all available values
                 indicatorData.forEach((item: any) => {
                   if (item && ("timestamp" in item || "timestamps" in item)) {
-                    // Handle timestamp
                     const timestamp = item.timestamp || item.timestamps;
                     transformedData.timestamps.push(
                       new Date(timestamp).getTime()
@@ -246,17 +251,13 @@ export const useIndicators = ({
 
                     // Process all fields except timestamp/timestamps
                     Object.entries(item).forEach(([field, value]) => {
-                      if (
-                        field !== "timestamp" &&
-                        field !== "timestamps" &&
-                        field in transformedData
-                      ) {
-                        // Handle null values
-                        if (value === null) {
-                          transformedData[field].push(NaN);
-                        } else {
-                          transformedData[field].push(value as number);
+                      if (field !== "timestamp" && field !== "timestamps") {
+                        // Normalize the field name
+                        const normalizedField = normalizeFieldName(field);
+                        if (!transformedData[normalizedField]) {
+                          transformedData[normalizedField] = [];
                         }
+                        transformedData[normalizedField].push(value as number);
                       }
                     });
                   }
@@ -269,24 +270,33 @@ export const useIndicators = ({
                     data: transformedData,
                   });
                   console.log(
-                    `Successfully processed ${transformedData.timestamps.length} data points for ${indicator.id} with fields:`,
-                    Object.keys(transformedData)
+                    `[useIndicators] Successfully processed ${indicator.id}:`,
+                    {
+                      dataPoints: transformedData.timestamps.length,
+                      fields: Object.keys(transformedData),
+                      position: schema.position,
+                    }
                   );
                 }
               }
             }
           });
-
-        console.log("Formatted results:", formattedResults);
       }
 
+      console.log("[useIndicators] Calculation completed:", {
+        totalResults: formattedResults.length,
+        onChart: formattedResults.filter((r) => r.position === "on_chart")
+          .length,
+        below: formattedResults.filter((r) => r.position === "below").length,
+      });
+
       setCalculationResults(formattedResults);
-      return formattedResults;
-    } catch (err) {
-      console.error("Error calculating indicators:", err);
-      return [];
-    } finally {
       setIsCalculating(false);
+      return formattedResults;
+    } catch (error) {
+      console.error("[useIndicators] Calculation error:", error);
+      setIsCalculating(false);
+      throw error;
     }
   };
 

@@ -246,6 +246,10 @@ const NiftyChartContainer: React.FC<NiftyChartContainerProps> = ({
 
   // Update the options when selected indicators change
   React.useEffect(() => {
+    console.log(
+      "[NiftyChartContainer] Selected indicators changed:",
+      selectedIndicators
+    );
     setOptions((prev: NiftyChartOptions) => ({
       ...prev,
       indicators: selectedIndicators,
@@ -254,6 +258,13 @@ const NiftyChartContainer: React.FC<NiftyChartContainerProps> = ({
 
   // Update options when calculation results change
   React.useEffect(() => {
+    console.log("[NiftyChartContainer] Calculation results updated:", {
+      total: finalCalculationResults.length,
+      onChart: finalCalculationResults.filter((r) => r.position === "on_chart")
+        .length,
+      below: finalCalculationResults.filter((r) => r.position === "below")
+        .length,
+    });
     setOptions((prev: NiftyChartOptions) => ({
       ...prev,
       calculationResults: finalCalculationResults,
@@ -309,33 +320,66 @@ const NiftyChartContainer: React.FC<NiftyChartContainerProps> = ({
   // Function to trigger indicator calculation when the calculate button is clicked
   const handleCalculateIndicators = async () => {
     if (selectedIndicators.length === 0) {
+      console.log(
+        "[NiftyChartContainer] No indicators selected for calculation"
+      );
       alert("Please select at least one indicator first");
       return;
     }
 
-    console.log("Starting indicator calculation with:", selectedIndicators);
+    console.log("[NiftyChartContainer] Starting indicator calculation with:", {
+      indicators: selectedIndicators.map((ind) => ({
+        id: ind.id,
+        active: ind.active,
+        parameters: ind.parameters,
+      })),
+    });
 
     try {
       const results = await calculateSelectedIndicators();
-      console.log("Calculation completed successfully:", results);
+      console.log("[NiftyChartContainer] Calculation completed successfully:", {
+        total: results.length,
+        indicators: results.map((r) => ({
+          name: r.indicator,
+          position: r.position,
+          dataFields: Object.keys(r.data),
+        })),
+      });
     } catch (err) {
-      console.error("Error calculating indicators:", err);
+      console.error("[NiftyChartContainer] Error calculating indicators:", err);
       alert("Failed to calculate indicators. Please try again.");
     }
   };
 
   // Handle data from AddIndicatorModal
   const handleProcessedDataUpdate = (data: IndicatorCalculationResult[]) => {
-    console.log("Received processed data from AddIndicatorModal:", data);
+    console.log(
+      "[NiftyChartContainer] Received processed data from AddIndicatorModal:",
+      {
+        total: data.length,
+        indicators: data.map((r) => ({
+          name: r.indicator,
+          position: r.position,
+          dataFields: Object.keys(r.data),
+        })),
+      }
+    );
     setExternalIndicatorData(data);
 
     // Create virtual selected indicators for on-chart indicators from AddIndicatorModal
-    // This is needed because the chart utils expects indicators in the selectedIndicators format
     const onChartIndicators = data.filter(
       (result) => result.position === "on_chart"
     );
 
     if (onChartIndicators.length > 0) {
+      console.log(
+        "[NiftyChartContainer] Creating virtual indicators for on-chart display:",
+        {
+          count: onChartIndicators.length,
+          indicators: onChartIndicators.map((r) => r.indicator),
+        }
+      );
+
       // Create temporary selected indicators for these
       const tempSelectedIndicators = onChartIndicators.map((result) => ({
         id: result.indicator,
@@ -343,11 +387,6 @@ const NiftyChartContainer: React.FC<NiftyChartContainerProps> = ({
         parameters: {},
         active: true,
       }));
-
-      console.log(
-        "Created virtual indicators for on-chart display:",
-        tempSelectedIndicators
-      );
 
       // Add these to the existing selected indicators
       setOptions((prev) => ({
