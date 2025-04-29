@@ -11,6 +11,7 @@ interface NiftyChartProps {
   className?: string;
   style?: React.CSSProperties;
   onDataZoomChange?: (values: { start: number; end: number }) => void;
+  showXAxis?: boolean;
 }
 
 const NiftyChart: React.FC<NiftyChartProps> = ({
@@ -20,6 +21,7 @@ const NiftyChart: React.FC<NiftyChartProps> = ({
   className = "",
   style = {},
   onDataZoomChange,
+  showXAxis = true,
 }) => {
   const [chartOptions, setChartOptions] = useState(
     generateNiftyChartOptions(data, options)
@@ -36,9 +38,30 @@ const NiftyChart: React.FC<NiftyChartProps> = ({
     // Get chart options from the utils
     const baseOptions = generateNiftyChartOptions(data, options);
 
-    // Use the options directly without modification
+    // Modify xAxis configuration based on showXAxis prop
+    if (baseOptions.xAxis && typeof baseOptions.xAxis === "object") {
+      if (Array.isArray(baseOptions.xAxis)) {
+        baseOptions.xAxis.forEach((axis) => {
+          axis.axisLabel = { ...axis.axisLabel, show: showXAxis };
+        });
+      } else {
+        baseOptions.xAxis.axisLabel = {
+          ...baseOptions.xAxis.axisLabel,
+          show: showXAxis,
+        };
+      }
+    }
+
+    // Adjust grid bottom margin if x-axis is hidden
+    if (baseOptions.grid && typeof baseOptions.grid === "object") {
+      if (!Array.isArray(baseOptions.grid)) {
+        baseOptions.grid.bottom = showXAxis ? "10%" : "0%";
+      }
+    }
+
+    // Use the modified options
     setChartOptions(baseOptions);
-  }, [data, options]);
+  }, [data, options, showXAxis]);
 
   // Handle zoom events from both slider and mouse wheel
   useEffect(() => {

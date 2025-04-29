@@ -15,6 +15,8 @@ export const generateNiftyChartOptions = (
     theme: options.theme,
     selectedIndicators: options.indicators?.length || 0,
     calculationResults: options.calculationResults?.length || 0,
+    showAllIndicators: options.showAllIndicators,
+    belowIndicators: options.belowIndicators?.length || 0,
   });
 
   const {
@@ -22,24 +24,14 @@ export const generateNiftyChartOptions = (
     showVolume = true,
     theme = "light",
     indicators = [],
+    showAllIndicators = false,
+    belowIndicators = [],
+
+    dataZoom: userDataZoom,
   } = options;
 
   // Use data directly as received from API
   const chartData = data;
-
-  // Prepare data for candlestick chart - format should be [open, close, low, high]
-  const candlestickData = chartData.map((item) => [
-    item.open,
-    item.close,
-    item.low,
-    item.high,
-  ]);
-  console.log("candlestickData", candlestickData);
-
-  // Prepare data for volume chart if needed
-  const volumeData = showVolume
-    ? chartData.map((item) => item.volume || 0)
-    : [];
 
   // Base text color based on theme
   const textColor = theme === "dark" ? "#ddd" : "#333";
@@ -67,15 +59,34 @@ export const generateNiftyChartOptions = (
       return false;
     }) || [];
 
-  console.log("[chartUtils] Filtered on-chart indicators:", {
-    total: onChartIndicators.length,
-    indicators: onChartIndicators.map((ind) => ({
-      name: ind.indicator,
-      fields: Object.keys(ind.data).filter(
-        (k) => k !== "timestamps" && k !== "timestamp"
-      ),
-    })),
-  });
+  // When showAllIndicators is true, add below indicators to the chart
+  const allIndicators = showAllIndicators
+    ? [...onChartIndicators, ...(belowIndicators || [])]
+    : onChartIndicators;
+
+  // Calculate grid heights for multiple indicators
+  let mainGridHeight = "70%"; // Main chart height
+  const belowGrids: any[] = [];
+
+  if (showAllIndicators && belowIndicators.length > 0) {
+    // Calculate space for each indicator
+    const indicatorCount = belowIndicators.length;
+    const indicatorHeight = Math.max(15, Math.min(25, 80 / indicatorCount)); // Between 15% and 25% per indicator
+    mainGridHeight = `${100 - indicatorHeight * indicatorCount}%`;
+
+    // Create grid for each below indicator
+    belowIndicators.forEach((_, index) => {
+      const top = `${100 - indicatorHeight * (indicatorCount - index)}%`;
+      const height = `${indicatorHeight}%`;
+      belowGrids.push({
+        left: "0%",
+        right: "2%",
+        top,
+        height,
+        containLabel: true,
+      });
+    });
+  }
 
   // Prepare dataset with chart data and indicators
   const sourceData = chartData.map((item, index) => {
@@ -88,8 +99,8 @@ export const generateNiftyChartOptions = (
       volume: item.volume || 0,
     };
 
-    // Add indicator fields if available
-    onChartIndicators.forEach((indicatorResult) => {
+    // Add indicator fields from all indicators (on-chart and below)
+    allIndicators.forEach((indicatorResult) => {
       Object.entries(indicatorResult.data).forEach(([key, values]) => {
         if (
           key !== "timestamps" &&
@@ -108,6 +119,247 @@ export const generateNiftyChartOptions = (
 
     return dataPoint;
   });
+
+  // Create xAxes and yAxes for all grids
+  const xAxes = [
+    {
+      type: "category",
+      boundaryGap: false,
+      axisLine: { lineStyle: { color: textColor } },
+      axisLabel: {
+        color: textColor,
+        formatter: (value: string) => {
+          // Format to show compact date and time
+          if (value.includes(" ")) {
+            // If it has both date and time (contains space)
+            const parts = value.split(" ");
+            if (parts.length > 1) {
+              // Return just the time part for intraday data
+              return parts[1];
+            }
+          }
+
+          // For daily data, format as MM/DD
+          const dateParts = value.split("-");
+          if (dateParts.length === 3) {
+            return `${dateParts[1]}/${dateParts[2]}`;
+          }
+
+          return value; // Return as is if no pattern matches
+        },
+        rotate: 0, // Keep labels horizontal for better readability
+        fontSize: 10,
+        show: !showAllIndicators, // Hide labels if showing all indicators except for bottom grid
+      },
+      splitLine: { show: false },
+      gridIndex: 0,
+    },
+  ];
+
+  // If showing indicator grids in unified chart, add xAxes for each grid
+  if (showAllIndicators && belowGrids.length > 0) {
+    belowGrids.forEach((_, index) => {
+      xAxes.push({
+        type: "category" as const,
+        boundaryGap: false,
+        axisLine: {
+          show: index === belowGrids.length - 1, // Only show axis line for bottom grid
+          lineStyle: { color: textColor },
+        } as any,
+        axisTick: {
+          show: index === belowGrids.length - 1, // Only show ticks for bottom grid
+        },
+        axisLabel: {
+          color: textColor,
+          formatter: (value: string) => {
+            // Only show labels for the bottom grid
+            if (index !== belowGrids.length - 1) return "";
+
+            // Format to show compact date and time
+            if (value.includes(" ")) {
+              const parts = value.split(" ");
+              if (parts.length > 1) {
+                return parts[1]; // Show only time for intraday
+              }
+            }
+
+            // For daily data, format as MM/DD
+            const dateParts = value.split("-");
+            if (dateParts.length === 3) {
+              return `${dateParts[1]}/${dateParts[2]}`;
+            }
+
+            return value;
+          },
+          rotate: 0,
+          fontSize: 10,
+          show: index === belowGrids.length - 1, // Only show labels for bottom grid
+        },
+        splitLine: { show: false },
+        gridIndex: index + 1, // +1 because main chart is index 0
+      } as any);
+    });
+  }
+
+  // Create yAxes for main grid and indicator grids
+  const yAxes = [
+    {
+      // Main price scale
+      name: "Price",
+      scale: true,
+      splitNumber: 5,
+      axisLine: { lineStyle: { color: textColor } },
+      axisLabel: {
+        color: textColor,
+        padding: [0, 10, 0, 0],
+        align: "right",
+        formatter: (value: number) => {
+          return value.toFixed(0);
+        },
+      },
+      splitLine: {
+        show: true,
+        lineStyle: { color: theme === "dark" ? "#333" : "#eee" },
+      },
+      position: "right",
+      gridIndex: 0,
+      // Add scale limits to ensure all data is visible
+      min: (value: any) => {
+        return Math.floor(value.min * 0.995); // Add 0.5% padding below
+      },
+      max: (value: any) => {
+        return Math.ceil(value.max * 1.005); // Add 0.5% padding above
+      },
+    },
+    {
+      // Volume scale (hidden but used for data scaling)
+      name: "Volume",
+      scale: true,
+      show: false,
+      gridIndex: 0,
+      // Ensure volume bars occupy bottom 20% of the main chart area
+      max: (value: any) => {
+        return value.max * 5; // This will make the volume bars take up ~20% of the chart height
+      },
+      axisPointer: {
+        show: false,
+      },
+    },
+  ];
+
+  // If showing indicator grids, add yAxes for each indicator
+  if (showAllIndicators && belowGrids.length > 0) {
+    belowIndicators.forEach((indicator, index) => {
+      yAxes.push({
+        name: indicator.indicator,
+        scale: true,
+        splitNumber: 3,
+        axisLine: { lineStyle: { color: textColor } },
+        axisLabel: {
+          color: textColor,
+          padding: [0, 10, 0, 0],
+          align: "right",
+          formatter: (value: number) => {
+            return Math.abs(value) > 10 ? value.toFixed(0) : value.toFixed(2);
+          },
+        },
+        splitLine: {
+          show: true,
+          lineStyle: { color: theme === "dark" ? "#333" : "#eee" },
+        },
+        position: "right",
+        gridIndex: index + 1, // +1 because main chart is index 0
+        min: (value: any) => Math.floor(value.min * 0.95),
+        max: (value: any) => Math.ceil(value.max * 1.05),
+      } as any);
+    });
+  }
+
+  // Create all grids for the chart
+  const grids = [
+    {
+      left: "0%",
+      right: "2%",
+      top: "15%",
+      height: mainGridHeight, // Adjusted for multiple indicators
+      containLabel: true,
+    },
+    // Add grids for below indicators
+    ...belowGrids,
+  ];
+
+  // Create all datazoom controllers
+  const dataZooms = [
+    {
+      // Inside scroll and zoom
+      type: "inside",
+      xAxisIndex: Array.from({ length: xAxes.length }, (_, i) => i), // Apply to all xAxes
+      start: userDataZoom?.start ?? 60,
+      end: userDataZoom?.end ?? 100,
+      zoomLock: false,
+    },
+    {
+      // Bottom slider
+      show: true,
+      realtime: true,
+      type: "slider",
+      xAxisIndex: Array.from({ length: xAxes.length }, (_, i) => i), // Apply to all xAxes
+      bottom: 10,
+      height: 40,
+      left: "0%",
+      right: "2%",
+      start: userDataZoom?.start ?? 60,
+      end: userDataZoom?.end ?? 100,
+      brushSelect: false,
+      emphasis: {
+        handleStyle: {
+          borderWidth: 2,
+          borderColor: theme === "dark" ? "#aaa" : "#555",
+        },
+        handleLabel: {
+          show: false,
+        },
+      },
+      dataBackground: {
+        lineStyle: {
+          color: theme === "dark" ? "#777" : "#aaa",
+          width: 1,
+        },
+        areaStyle: {
+          color: theme === "dark" ? "#444" : "#eee",
+          opacity: 1,
+        },
+      },
+      textStyle: {
+        color: textColor,
+        fontSize: 11,
+      },
+      handleIcon:
+        "M8.2,13.6V3.9H6.3v9.7H3.1v14.9h3.3v9.7h1.8v-9.7h3.3V13.6H8.2z",
+      handleSize: "100%",
+      handleStyle: {
+        color: theme === "dark" ? "#999" : "#fff",
+        borderColor: theme === "dark" ? "#666" : "#ACB8D1",
+        borderWidth: 1,
+        shadowBlur: 2,
+        shadowColor: "rgba(0, 0, 0, 0.2)",
+      },
+      borderColor: theme === "dark" ? "#555" : "#ddd",
+      backgroundColor: theme === "dark" ? "#333" : "#f7f7f7",
+      fillerColor:
+        theme === "dark" ? "rgba(80,80,80,0.8)" : "rgba(220,220,220,0.8)",
+      selectedDataBackground: {
+        lineStyle: {
+          color: theme === "dark" ? "#999" : "#888",
+          width: 1,
+        },
+        areaStyle: {
+          color: theme === "dark" ? "#666" : "#ddd",
+          opacity: 1,
+        },
+      },
+    },
+  ];
 
   const baseOption: EChartsOption = {
     title: {
@@ -270,7 +522,7 @@ export const generateNiftyChartOptions = (
       data: [
         "Nifty 50",
         ...(showVolume ? ["Volume"] : []),
-        ...onChartIndicators
+        ...allIndicators
           .flatMap((ind) => {
             // Get only fields with actual data (non-null values)
             const fieldsWithData = Object.entries(ind.data)
@@ -305,154 +557,10 @@ export const generateNiftyChartOptions = (
         color: textColor,
       },
     },
-    grid: [
-      {
-        left: "0%",
-        right: "2%",
-        top: "15%",
-        bottom: "60px", // Explicit pixels for bottom margin for the slider
-        containLabel: true, // Ensure axis labels are contained within the grid
-      },
-    ],
-    xAxis: [
-      {
-        type: "category",
-        boundaryGap: false,
-        axisLine: { lineStyle: { color: textColor } },
-        axisLabel: {
-          color: textColor,
-          formatter: (value: string) => {
-            // Format to show compact date and time
-            if (value.includes(" ")) {
-              // If it has both date and time (contains space)
-              const parts = value.split(" ");
-              // Return MM-DD HH:MM format
-              return `${parts[0].substring(5)} ${parts[1]}`;
-            }
-            return value.slice(5); // Just show MM-DD for dates without time
-          },
-          rotate: 30,
-          fontSize: 10,
-        },
-        splitLine: { show: false },
-        gridIndex: 0,
-      },
-    ],
-    yAxis: [
-      {
-        // Main price scale
-        name: "Price",
-        scale: true,
-        splitNumber: 5,
-        axisLine: { lineStyle: { color: textColor } },
-        axisLabel: {
-          color: textColor,
-          padding: [0, 10, 0, 0],
-          align: "right",
-          formatter: (value: number) => {
-            return value.toFixed(0);
-          },
-        },
-        splitLine: {
-          show: true,
-          lineStyle: { color: theme === "dark" ? "#333" : "#eee" },
-        },
-        position: "right",
-        gridIndex: 0,
-        // Add scale limits to ensure all data is visible
-        min: (value: any) => {
-          return Math.floor(value.min * 0.995); // Add 0.5% padding below
-        },
-        max: (value: any) => {
-          return Math.ceil(value.max * 1.005); // Add 0.5% padding above
-        },
-      },
-      {
-        // Volume scale (hidden but used for data scaling)
-        name: "Volume",
-        scale: true,
-        show: false,
-        gridIndex: 0,
-        // Ensure volume bars occupy bottom 20% of the main chart area
-        max: (value: any) => {
-          return value.max * 5; // This will make the volume bars take up ~20% of the chart height
-        },
-        axisPointer: {
-          show: false,
-        },
-      },
-    ],
-    dataZoom: [
-      {
-        // Inside scroll and zoom
-        type: "inside",
-        xAxisIndex: [0],
-        start: 60,
-        end: 100,
-        zoomLock: false,
-      },
-      {
-        // Bottom slider
-        show: true,
-        realtime: true,
-        type: "slider",
-        xAxisIndex: [0],
-        bottom: 10,
-        height: 40,
-        left: "0%",
-        right: "2%",
-        start: 60,
-        end: 100,
-        brushSelect: false,
-        emphasis: {
-          handleStyle: {
-            borderWidth: 2,
-            borderColor: theme === "dark" ? "#aaa" : "#555",
-          },
-          handleLabel: {
-            show: false,
-          },
-        },
-        dataBackground: {
-          lineStyle: {
-            color: theme === "dark" ? "#777" : "#aaa",
-            width: 1,
-          },
-          areaStyle: {
-            color: theme === "dark" ? "#444" : "#eee",
-            opacity: 1,
-          },
-        },
-        textStyle: {
-          color: textColor,
-          fontSize: 11,
-        },
-        handleIcon:
-          "M8.2,13.6V3.9H6.3v9.7H3.1v14.9h3.3v9.7h1.8v-9.7h3.3V13.6H8.2z",
-        handleSize: "100%",
-        handleStyle: {
-          color: theme === "dark" ? "#999" : "#fff",
-          borderColor: theme === "dark" ? "#666" : "#ACB8D1",
-          borderWidth: 1,
-          shadowBlur: 2,
-          shadowColor: "rgba(0, 0, 0, 0.2)",
-        },
-        borderColor: theme === "dark" ? "#555" : "#ddd",
-        backgroundColor: theme === "dark" ? "#333" : "#f7f7f7",
-        fillerColor:
-          theme === "dark" ? "rgba(80,80,80,0.8)" : "rgba(220,220,220,0.8)",
-        selectedDataBackground: {
-          lineStyle: {
-            color: theme === "dark" ? "#999" : "#888",
-            width: 1,
-          },
-          areaStyle: {
-            color: theme === "dark" ? "#666" : "#ddd",
-            opacity: 1,
-          },
-        },
-      },
-    ],
+    grid: grids,
+    xAxis: xAxes as any,
+    yAxis: yAxes as any,
+    dataZoom: dataZooms,
     series: [
       {
         name: "Nifty 50",
@@ -476,10 +584,7 @@ export const generateNiftyChartOptions = (
   };
 
   // Add volume series if required
-  if (showVolume && volumeData.length > 0) {
-    // Calculate volumes as percentage of max for display
-    // This will scale volume bars to fit at the bottom of the chart
-
+  if (showVolume && chartData.length > 0) {
     (baseOption.series as any[]).push({
       name: "Volume",
       type: "bar",
@@ -596,96 +701,117 @@ export const generateNiftyChartOptions = (
 
     return style;
   };
-  // Add on-chart indicators as line series
-  onChartIndicators.forEach((indicatorResult: IndicatorCalculationResult) => {
-    // Get base color for this indicator
-    const baseColor = colors[colorIndex % colors.length];
-    colorIndex++;
 
-    // Filter out fields with all null values
-    const fieldsWithData = Object.entries(indicatorResult.data)
-      .filter(([key, values]) => {
-        if (key === "timestamps" || key === "timestamp") return false;
-        const hasValidData =
-          values &&
-          Array.isArray(values) &&
-          values.some((v) => v !== null && v !== undefined);
-        console.log(
-          `[chartUtils] Checking field ${key} for ${
-            indicatorResult.indicator
-          }: ${hasValidData ? "has data" : "no valid data"}`
+  // Add all indicators (on-chart and below)
+  allIndicators.forEach(
+    (indicatorResult: IndicatorCalculationResult, _: number) => {
+      // Get base color for this indicator
+      const baseColor = colors[colorIndex % colors.length];
+      colorIndex++;
+
+      // Determine which grid this indicator belongs to
+      let xAxisIndex = 0;
+      let yAxisIndex = 0;
+
+      // For below indicators, use their respective grid
+      if (indicatorResult.position === "below" && showAllIndicators) {
+        // Find index in belowIndicators
+        const belowIndex = belowIndicators.findIndex(
+          (ind) => ind.indicator === indicatorResult.indicator
         );
-        return hasValidData;
-      })
-      .map(([key]) => key);
-
-    console.log(
-      `[chartUtils] Fields with actual data for ${indicatorResult.indicator}:`,
-      fieldsWithData
-    );
-
-    // Sort fields to ensure proper rendering order (lower_band -> middle_band -> upper_band)
-    const sortedFields = [...fieldsWithData].sort((a, b) => {
-      const order = ["lower_band", "middle_band", "upper_band", "value"];
-      const aIndex = order.indexOf(a);
-      const bIndex = order.indexOf(b);
-      return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
-    });
-
-    // Process each field that has data
-    sortedFields.forEach((key) => {
-      const seriesName = `${indicatorResult.indicator}_${key}`;
-      const displayName =
-        key === "value"
-          ? indicatorResult.indicator
-          : `${indicatorResult.indicator} (${key})`;
-
-      console.log(`[chartUtils] Adding series for ${displayName}:`, {
-        name: seriesName,
-        fieldKey: key,
-        dataPoints: indicatorResult.data[key]?.length || 0,
-      });
-
-      // Get style for this specific field
-      const style = getIndicatorStyle(
-        indicatorResult.indicator,
-        key,
-        baseColor
-      );
-
-      // For band indicators, we need to set up the area between bands
-      let areaStyle = style.areaStyle;
-      if (
-        key.includes("upper_band") &&
-        ["bollinger_band", "donchian_channel", "keltner_channel"].includes(
-          indicatorResult.indicator
-        )
-      ) {
-        // Find the corresponding lower band data
-        const lowerBandKey = "lower_band";
-        if (indicatorResult.data[lowerBandKey]) {
-          areaStyle = {
-            ...style.areaStyle,
-            origin: "auto",
-          };
+        if (belowIndex >= 0) {
+          xAxisIndex = belowIndex + 1;
+          yAxisIndex = belowIndex + 2; // +2 because main chart has two yAxes (price and volume)
         }
       }
 
-      // Add the series configuration with adjusted data
-      (baseOption.series as any[]).push({
-        name: seriesName,
-        ...style,
-        areaStyle: areaStyle,
-        encode: {
-          x: "time",
-          y: seriesName,
-        },
-        xAxisIndex: 0,
-        yAxisIndex: 0,
-        z: key.includes("middle_band") ? 2 : 1, // Middle band on top of other bands
+      // Filter out fields with all null values
+      const fieldsWithData = Object.entries(indicatorResult.data)
+        .filter(([key, values]) => {
+          if (key === "timestamps" || key === "timestamp") return false;
+          const hasValidData =
+            values &&
+            Array.isArray(values) &&
+            values.some((v) => v !== null && v !== undefined);
+          console.log(
+            `[chartUtils] Checking field ${key} for ${
+              indicatorResult.indicator
+            }: ${hasValidData ? "has data" : "no valid data"}`
+          );
+          return hasValidData;
+        })
+        .map(([key]) => key);
+
+      console.log(
+        `[chartUtils] Fields with actual data for ${indicatorResult.indicator}:`,
+        fieldsWithData
+      );
+
+      // Sort fields to ensure proper rendering order (lower_band -> middle_band -> upper_band)
+      const sortedFields = [...fieldsWithData].sort((a, b) => {
+        const order = ["lower_band", "middle_band", "upper_band", "value"];
+        const aIndex = order.indexOf(a);
+        const bIndex = order.indexOf(b);
+        return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
       });
-    });
-  });
+
+      // Process each field that has data
+      sortedFields.forEach((key) => {
+        const seriesName = `${indicatorResult.indicator}_${key}`;
+        const displayName =
+          key === "value"
+            ? indicatorResult.indicator
+            : `${indicatorResult.indicator} (${key})`;
+
+        console.log(`[chartUtils] Adding series for ${displayName}:`, {
+          name: seriesName,
+          fieldKey: key,
+          dataPoints: indicatorResult.data[key]?.length || 0,
+          xAxisIndex,
+          yAxisIndex,
+        });
+
+        // Get style for this specific field
+        const style = getIndicatorStyle(
+          indicatorResult.indicator,
+          key,
+          baseColor
+        );
+
+        // For band indicators, we need to set up the area between bands
+        let areaStyle = style.areaStyle;
+        if (
+          key.includes("upper_band") &&
+          ["bollinger_band", "donchian_channel", "keltner_channel"].includes(
+            indicatorResult.indicator
+          )
+        ) {
+          // Find the corresponding lower band data
+          const lowerBandKey = "lower_band";
+          if (indicatorResult.data[lowerBandKey]) {
+            areaStyle = {
+              ...style.areaStyle,
+              origin: "auto",
+            };
+          }
+        }
+
+        // Add the series configuration with adjusted data
+        (baseOption.series as any[]).push({
+          name: seriesName,
+          ...style,
+          areaStyle: areaStyle,
+          encode: {
+            x: "time",
+            y: seriesName,
+          },
+          xAxisIndex: xAxisIndex,
+          yAxisIndex: yAxisIndex,
+          z: key.includes("middle_band") ? 2 : 1, // Middle band on top of other bands
+        });
+      });
+    }
+  );
 
   return baseOption;
 };

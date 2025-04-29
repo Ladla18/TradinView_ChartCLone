@@ -83,12 +83,31 @@ const mockIndicators = {
 export const getAllIndicators = async () => {
   try {
     const response = await fetch(
-      "https://dev.api.tusta.co/charts/get_all_indicators"
+      "https://dev.api.tusta.co/v2/indicator_based_strategies/get_all_indicators"
     );
     if (!response.ok) {
       throw new Error(`API error: ${response.status}`);
     }
-    return await response.json();
+
+    const data = await response.json();
+
+    // Check if the response is an array (new format) or object (old format)
+    if (Array.isArray(data)) {
+      // Convert from array to object with short_name as key
+      const formattedData: Record<string, any> = {};
+      data.forEach((indicator) => {
+        formattedData[indicator.short_name] = {
+          description: indicator.name,
+          output: indicator.output,
+          parameters: indicator.parameters,
+          position: indicator.position,
+        };
+      });
+      return formattedData;
+    }
+
+    // If it's already in the expected object format, return as is
+    return data;
   } catch (error) {
     console.error("Error fetching indicators, using fallback data:", error);
     // Return mock data as fallback

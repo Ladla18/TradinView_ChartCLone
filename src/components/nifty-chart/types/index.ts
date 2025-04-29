@@ -20,8 +20,14 @@ export interface NiftyChartOptions {
   height?: string | number;
   width?: string | number;
   theme?: "light" | "dark";
-  indicators?: { id: string; active: boolean }[];
+  indicators?: Array<{ id: string; active: boolean }>;
   calculationResults?: IndicatorCalculationResult[];
+  showAllIndicators?: boolean;
+  belowIndicators?: IndicatorCalculationResult[];
+  timestamps?: string[];
+  totalDataPoints?: number;
+  dataZoom?: { start: number; end: number };
+  showDataToolbar?: boolean;
 }
 
 export interface ApiDataPoint {

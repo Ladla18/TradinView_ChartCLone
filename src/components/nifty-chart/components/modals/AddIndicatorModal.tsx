@@ -145,7 +145,7 @@ const AddIndicatorModal: React.FC<AddIndicatorModalProps> = ({
 
     // Auto-fill name from indicator type
     if (!indicatorName) {
-      setIndicatorName(indicator);
+      setIndicatorName(allIndicators[indicator]?.description || indicator);
     }
 
     // Initialize parameter values
@@ -422,7 +422,6 @@ const AddIndicatorModal: React.FC<AddIndicatorModalProps> = ({
                 // Check if all expected output fields from schema are present
                 if (indicatorSchema.output) {
                   const expectedFields = Object.keys(indicatorSchema.output);
-                 
 
                   // Check for missing fields
                   const missingFields = expectedFields.filter((field) => {

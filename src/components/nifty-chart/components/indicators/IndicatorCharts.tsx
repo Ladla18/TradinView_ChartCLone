@@ -13,6 +13,10 @@ interface IndicatorChartsProps {
   theme?: "light" | "dark";
   dates: string[];
   dataZoom?: { start: number; end: number };
+  xAxisData?: number[];
+  totalDataPoints?: number;
+  showXAxis?: boolean;
+  isBottomChart?: boolean;
 }
 
 const IndicatorCharts: React.FC<IndicatorChartsProps> = ({
@@ -21,6 +25,10 @@ const IndicatorCharts: React.FC<IndicatorChartsProps> = ({
   theme = "light",
   dates,
   dataZoom,
+  xAxisData,
+  totalDataPoints,
+  showXAxis = false,
+  isBottomChart = false,
 }) => {
   const [minimizedIndicators, setMinimizedIndicators] = useState<string[]>([]);
   const [indicatorHeights, setIndicatorHeights] = useState<
@@ -35,6 +43,9 @@ const IndicatorCharts: React.FC<IndicatorChartsProps> = ({
     resultsCount: calculationResults?.length || 0,
     indicatorSchemaExists: !!indicatorSchema,
     datesCount: dates?.length || 0,
+    totalDataPoints: totalDataPoints || 0,
+    showXAxis,
+    isBottomChart,
   });
 
   if (!calculationResults || calculationResults.length === 0) {
@@ -191,6 +202,13 @@ const IndicatorCharts: React.FC<IndicatorChartsProps> = ({
           const isMinimized = minimizedIndicators.includes(result.indicator);
           const isCurrentlyResizing = resizing === result.indicator;
 
+          // Determine if this specific indicator should show x-axis
+          // Only the last indicator should show x-axis when isBottomChart is true
+          const shouldShowXAxis =
+            showXAxis &&
+            isBottomChart &&
+            index === belowChartIndicators.length - 1;
+
           return (
             <div
               key={result.indicator}
@@ -251,6 +269,12 @@ const IndicatorCharts: React.FC<IndicatorChartsProps> = ({
                     theme={theme}
                     compact={true}
                     dataZoom={dataZoom}
+                    xAxisData={xAxisData}
+                    totalDataPoints={totalDataPoints}
+                    showXAxis={shouldShowXAxis}
+                    isBottomChart={
+                      index === belowChartIndicators.length - 1 && isBottomChart
+                    }
                   />
                 </div>
               )}

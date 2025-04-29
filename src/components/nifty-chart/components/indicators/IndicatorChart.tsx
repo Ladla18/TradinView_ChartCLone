@@ -10,6 +10,10 @@ interface IndicatorChartProps {
   theme?: "light" | "dark";
   compact?: boolean;
   dataZoom?: { start: number; end: number };
+  xAxisData?: number[];
+  totalDataPoints?: number;
+  showXAxis?: boolean;
+  isBottomChart?: boolean;
 }
 
 const IndicatorChart: React.FC<IndicatorChartProps> = ({
@@ -21,6 +25,10 @@ const IndicatorChart: React.FC<IndicatorChartProps> = ({
   theme = "light",
   compact = false,
   dataZoom,
+  xAxisData,
+  totalDataPoints,
+  showXAxis = false,
+  isBottomChart = false,
 }) => {
   const chartRef = useRef<ReactECharts>(null);
 
@@ -145,13 +153,21 @@ const IndicatorChart: React.FC<IndicatorChartProps> = ({
         };
       }
 
+      // If we have a complete set of x-axis data, use it for better alignment with main chart
+      const seriesData =
+        xAxisData && values.length > 0
+          ? xAxisData.map((_, idx) => {
+              return idx < values.length ? values[idx] : null;
+            })
+          : values;
+
       return {
         name: `${fieldDescription}`,
         type: seriesType,
         barWidth: barWidth,
         itemStyle: itemStyle,
-        // Use simple index-based data points rather than timestamps
-        data: values.map((value) => value),
+        // Use the synchronized data points
+        data: seriesData,
         symbol: "none",
         smooth: false, // TradingView charts typically have straight lines, not smooth
         lineStyle: {
@@ -317,6 +333,11 @@ const IndicatorChart: React.FC<IndicatorChartProps> = ({
     });
   }
 
+  // Create x-axis data that matches the main chart's x-axis
+  const chartXAxisData =
+    xAxisData ||
+    Array.from({ length: totalDataPoints || dates.length }, (_, i) => i);
+
   // Generate option for echarts with TradingView-like styling
   const option = {
     backgroundColor: bgColor,
@@ -399,19 +420,57 @@ const IndicatorChart: React.FC<IndicatorChartProps> = ({
     grid: {
       left: "3%",
       right: "5%",
-      bottom: "8%",
+      bottom: showXAxis ? "10%" : "3%",
       top: "24px",
       containLabel: true,
     },
     xAxis: {
       type: "category",
       boundaryGap: false,
-      axisLine: { show: false },
-      axisTick: { show: false },
+      axisLine: { show: showXAxis },
+      axisTick: { show: showXAxis },
       axisLabel: {
-        show: false, // Hide x-axis labels
+        show: showXAxis,
+        color: textColor,
+        fontSize: 10,
+        formatter: function (_: any, index: number) {
+          // Only show labels for the bottom chart
+          if (!isBottomChart || !dates || index >= dates.length) {
+            return "";
+          }
+
+          // Format the timestamp for display
+          const dateStr = dates[index];
+          if (!dateStr) return "";
+
+          // Check if date has time component
+          const parts = dateStr.split(" ");
+          if (parts.length > 1) {
+            // Has time component, show only time for intraday charts
+            return parts[1];
+          }
+
+          // For daily/weekly charts, show date in a compact format
+          const dateParts = parts[0].split("-");
+          if (dateParts.length === 3) {
+            // Convert YYYY-MM-DD to MM/DD format
+            return `${dateParts[1]}/${dateParts[2]}`;
+          }
+
+          return dateStr;
+        },
+        interval: function (index: number, _: any) {
+          // Control label density based on available width
+          // Show fewer labels when zoomed out, more when zoomed in
+          const visibleBars =
+            (Math.ceil((dataZoom?.end || 100) - (dataZoom?.start || 0)) / 100) *
+            (dates?.length || 0);
+          const interval = Math.max(1, Math.floor(visibleBars / 8)); // Show approximately 8 labels
+          return index % interval === 0;
+        },
       },
       splitLine: { show: false },
+      data: chartXAxisData,
     },
     yAxis: {
       type: "value",
