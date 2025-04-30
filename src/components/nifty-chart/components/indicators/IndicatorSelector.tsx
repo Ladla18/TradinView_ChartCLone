@@ -5,10 +5,7 @@ import {
   SelectedIndicator,
 } from "../../types/index";
 import Modal from "../layout/Modal";
-import {
-  Search,
-  Check,
-} from "lucide-react";
+import { Search, Check } from "lucide-react";
 
 interface IndicatorSelectorProps {
   isOpen: boolean;
@@ -21,6 +18,7 @@ interface IndicatorSelectorProps {
   onToggleIndicator: (id: string) => void;
   onCalculate?: () => void;
   isLoading: boolean;
+  onChangePosition?: (id: string, position: "on_chart" | "below") => void;
 }
 
 const IndicatorSelector: React.FC<IndicatorSelectorProps> = ({
@@ -34,6 +32,7 @@ const IndicatorSelector: React.FC<IndicatorSelectorProps> = ({
   onToggleIndicator,
   onCalculate,
   isLoading,
+  onChangePosition,
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<"available" | "selected">(
@@ -272,6 +271,24 @@ const IndicatorSelector: React.FC<IndicatorSelectorProps> = ({
                 </div>
 
                 <div className="flex gap-2">
+                  {onChangePosition && (
+                    <button
+                      onClick={() =>
+                        onChangePosition(
+                          indicator.id,
+                          schema.position === "on_chart" ? "below" : "on_chart"
+                        )
+                      }
+                      className="px-3 py-2 bg-purple-500 text-white rounded-md font-medium transition-colors hover:opacity-90"
+                      title={`Switch to ${
+                        schema.position === "on_chart"
+                          ? "separate panel"
+                          : "overlay"
+                      }`}
+                    >
+                      {schema.position === "on_chart" ? "Move Down" : "Move Up"}
+                    </button>
+                  )}
                   <button
                     onClick={() => onToggleIndicator(indicator.id)}
                     className={`px-3 py-2 rounded-md text-white font-medium transition-colors hover:opacity-90 ${

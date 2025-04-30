@@ -14,6 +14,7 @@ interface IndicatorChartProps {
   totalDataPoints?: number;
   showXAxis?: boolean;
   isBottomChart?: boolean;
+  hideTimestamps?: boolean;
 }
 
 const IndicatorChart: React.FC<IndicatorChartProps> = ({
@@ -29,6 +30,7 @@ const IndicatorChart: React.FC<IndicatorChartProps> = ({
   totalDataPoints,
   showXAxis = false,
   isBottomChart = false,
+  hideTimestamps = false,
 }) => {
   const chartRef = useRef<ReactECharts>(null);
 
@@ -365,15 +367,10 @@ const IndicatorChart: React.FC<IndicatorChartProps> = ({
       formatter: function (params: any) {
         let tooltipStr = "";
 
-        // First add the date/time if available
-        if (params[0] && params[0].dataIndex !== undefined) {
-          const index = params[0].dataIndex;
-          if (dates && dates[index]) {
-            tooltipStr += `<div style="font-size:11px;color:${textColor};margin-bottom:3px;font-weight:bold">${dates[index]}</div>`;
-          }
-        }
+        // No timestamp display in tooltips for indicator charts
+        // Skip any timestamp related content entirely
 
-        // Then add each value
+        // Add each value
         params.forEach((param: any) => {
           let valueDisplay = "N/A";
           const value = param.value;
@@ -420,54 +417,17 @@ const IndicatorChart: React.FC<IndicatorChartProps> = ({
     grid: {
       left: "3%",
       right: "5%",
-      bottom: showXAxis ? "10%" : "3%",
+      bottom: "3%", // Remove space for x-axis labels completely
       top: "24px",
       containLabel: true,
     },
     xAxis: {
       type: "category",
       boundaryGap: false,
-      axisLine: { show: showXAxis },
-      axisTick: { show: showXAxis },
+      axisLine: { show: false }, // Hide axis line completely
+      axisTick: { show: false }, // Hide axis ticks completely
       axisLabel: {
-        show: showXAxis,
-        color: textColor,
-        fontSize: 10,
-        formatter: function (_: any, index: number) {
-          // Only show labels for the bottom chart
-          if (!isBottomChart || !dates || index >= dates.length) {
-            return "";
-          }
-
-          // Format the timestamp for display
-          const dateStr = dates[index];
-          if (!dateStr) return "";
-
-          // Check if date has time component
-          const parts = dateStr.split(" ");
-          if (parts.length > 1) {
-            // Has time component, show only time for intraday charts
-            return parts[1];
-          }
-
-          // For daily/weekly charts, show date in a compact format
-          const dateParts = parts[0].split("-");
-          if (dateParts.length === 3) {
-            // Convert YYYY-MM-DD to MM/DD format
-            return `${dateParts[1]}/${dateParts[2]}`;
-          }
-
-          return dateStr;
-        },
-        interval: function (index: number, _: any) {
-          // Control label density based on available width
-          // Show fewer labels when zoomed out, more when zoomed in
-          const visibleBars =
-            (Math.ceil((dataZoom?.end || 100) - (dataZoom?.start || 0)) / 100) *
-            (dates?.length || 0);
-          const interval = Math.max(1, Math.floor(visibleBars / 8)); // Show approximately 8 labels
-          return index % interval === 0;
-        },
+        show: false, // Always hide all axis labels regardless of props
       },
       splitLine: { show: false },
       data: chartXAxisData,

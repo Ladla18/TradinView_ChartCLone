@@ -28,6 +28,8 @@ export interface NiftyChartOptions {
   totalDataPoints?: number;
   dataZoom?: { start: number; end: number };
   showDataToolbar?: boolean;
+  showTimestampsOnMain?: boolean;
+  showTimestampsOnLastIndicator?: boolean;
 }
 
 export interface ApiDataPoint {

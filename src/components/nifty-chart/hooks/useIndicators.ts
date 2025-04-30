@@ -24,6 +24,10 @@ interface UseIndicatorsReturn {
   updateIndicatorParameter: (id: string, paramName: string, value: any) => void;
   toggleIndicator: (id: string) => void;
   calculateSelectedIndicators: () => Promise<IndicatorCalculationResult[]>;
+  changeIndicatorPosition: (
+    id: string,
+    newPosition: "on_chart" | "below"
+  ) => void;
 }
 
 interface CalculationPayload {
@@ -323,6 +327,9 @@ export const useIndicators = ({
         name: indicator.description,
         parameters,
         active: true,
+        type: id,
+        period: 14,
+        chartType: "line",
       },
     ]);
   };
@@ -374,6 +381,38 @@ export const useIndicators = ({
     );
   };
 
+  // Change indicator position (on_chart or below)
+  const changeIndicatorPosition = (
+    id: string,
+    newPosition: "on_chart" | "below"
+  ) => {
+    // Update the position in calculation results
+    setCalculationResults((prev) =>
+      prev.map((result) => {
+        if (result.indicator !== id) return result;
+
+        return {
+          ...result,
+          position: newPosition,
+        };
+      })
+    );
+
+    // Also update the schema if needed for future calculations
+    if (indicatorSchema && indicatorSchema[id]) {
+      // Create a new schema object to avoid mutating the original
+      const updatedSchema = { ...indicatorSchema };
+      updatedSchema[id] = {
+        ...updatedSchema[id],
+        position: newPosition,
+      };
+
+      // We can't directly set indicatorSchema as it might be coming from a network request
+      // This is a temporary override for the current session
+      console.log(`Changed position for ${id} to ${newPosition}`);
+    }
+  };
+
   return {
     indicatorSchema,
     loading,
@@ -386,5 +425,6 @@ export const useIndicators = ({
     updateIndicatorParameter,
     toggleIndicator,
     calculateSelectedIndicators,
+    changeIndicatorPosition,
   };
 };

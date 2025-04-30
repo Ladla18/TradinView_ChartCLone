@@ -65,6 +65,7 @@ const NiftyChartContainer: React.FC<NiftyChartContainerProps> = ({
     calculateSelectedIndicators,
     calculationResults: internalCalculationResults,
     isCalculating,
+    changeIndicatorPosition,
   } = useIndicators();
 
   // Use external calculationResults if provided, otherwise use internal ones
@@ -79,7 +80,6 @@ const NiftyChartContainer: React.FC<NiftyChartContainerProps> = ({
   const belowChartIndicators = finalCalculationResults.filter(
     (result) => result.position === "below"
   );
-
 
   // Debug when calculation results change
   React.useEffect(() => {
@@ -311,7 +311,12 @@ const NiftyChartContainer: React.FC<NiftyChartContainerProps> = ({
       <div className="flex flex-col w-full flex-grow">
         <NiftyChart
           data={data}
-          options={unifiedChartOptions}
+          options={{
+            ...unifiedChartOptions,
+            // Configure timestamp visibility
+            showTimestampsOnMain: false, // Don't show timestamps on main chart
+            showTimestampsOnLastIndicator: false, // Only show timestamps on the last indicator
+          }}
           loading={chartLoading}
           style={{ height: "100%" }}
           onDataZoomChange={handleDataZoomChange}
@@ -330,6 +335,7 @@ const NiftyChartContainer: React.FC<NiftyChartContainerProps> = ({
         onToggleIndicator={toggleIndicator}
         onCalculate={handleCalculateIndicators}
         isLoading={indicatorsLoading}
+        onChangePosition={changeIndicatorPosition}
       />
 
       {isAddIndicatorModalOpen && (

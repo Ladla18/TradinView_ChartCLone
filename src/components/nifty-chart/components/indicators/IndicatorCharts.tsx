@@ -80,7 +80,7 @@ const IndicatorCharts: React.FC<IndicatorChartsProps> = ({
 
   // Initialize default heights for each indicator if not already set
   useEffect(() => {
-    const defaultHeight = 180; // Default height for each indicator
+    const defaultHeight = 100; // Changed from 180 to 140 for more compact charts
     const newHeights: Record<string, number> = {};
     let heightsChanged = false;
 
@@ -202,12 +202,9 @@ const IndicatorCharts: React.FC<IndicatorChartsProps> = ({
           const isMinimized = minimizedIndicators.includes(result.indicator);
           const isCurrentlyResizing = resizing === result.indicator;
 
-          // Determine if this specific indicator should show x-axis
-          // Only the last indicator should show x-axis when isBottomChart is true
-          const shouldShowXAxis =
-            showXAxis &&
-            isBottomChart &&
-            index === belowChartIndicators.length - 1;
+          // Never show timestamps in any indicator charts
+          const shouldShowXAxis = false;
+          const shouldHideTimestamps = true; // Always hide timestamps
 
           return (
             <div
@@ -272,9 +269,8 @@ const IndicatorCharts: React.FC<IndicatorChartsProps> = ({
                     xAxisData={xAxisData}
                     totalDataPoints={totalDataPoints}
                     showXAxis={shouldShowXAxis}
-                    isBottomChart={
-                      index === belowChartIndicators.length - 1 && isBottomChart
-                    }
+                    isBottomChart={isBottomChart}
+                    hideTimestamps={shouldHideTimestamps}
                   />
                 </div>
               )}

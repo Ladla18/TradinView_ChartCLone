@@ -26,7 +26,8 @@ export const generateNiftyChartOptions = (
     indicators = [],
     showAllIndicators = false,
     belowIndicators = [],
-
+    showTimestampsOnMain = false,
+    showTimestampsOnLastIndicator = true,
     dataZoom: userDataZoom,
   } = options;
 
@@ -71,13 +72,20 @@ export const generateNiftyChartOptions = (
   if (showAllIndicators && belowIndicators.length > 0) {
     // Calculate space for each indicator
     const indicatorCount = belowIndicators.length;
-    const indicatorHeight = Math.max(15, Math.min(25, 80 / indicatorCount)); // Between 15% and 25% per indicator
+    // Adjust for more compact indicators
+    const indicatorHeight = Math.max(10, Math.min(15, 60 / indicatorCount));
+    // Reserve space for main chart and indicators
     mainGridHeight = `${100 - indicatorHeight * indicatorCount}%`;
 
     // Create grid for each below indicator
     belowIndicators.forEach((_, index) => {
+      const isLastIndicator = index === belowIndicators.length - 1;
       const top = `${100 - indicatorHeight * (indicatorCount - index)}%`;
-      const height = `${indicatorHeight}%`;
+      // Last indicator needs to reserve space for x-axis labels
+      const height = isLastIndicator
+        ? `${indicatorHeight - 5}%`
+        : `${indicatorHeight}%`;
+
       belowGrids.push({
         left: "0%",
         right: "2%",
@@ -125,8 +133,12 @@ export const generateNiftyChartOptions = (
     {
       type: "category",
       boundaryGap: false,
-      axisLine: { lineStyle: { color: textColor } },
+      axisLine: {
+        show: false, // Hide axis line from main chart
+        lineStyle: { color: textColor },
+      },
       axisLabel: {
+        show: showTimestampsOnMain, // Show timestamps on main chart if enabled
         color: textColor,
         formatter: (value: string) => {
           // Format to show compact date and time
@@ -149,7 +161,6 @@ export const generateNiftyChartOptions = (
         },
         rotate: 0, // Keep labels horizontal for better readability
         fontSize: 10,
-        show: !showAllIndicators, // Hide labels if showing all indicators except for bottom grid
       },
       splitLine: { show: false },
       gridIndex: 0,
@@ -159,31 +170,34 @@ export const generateNiftyChartOptions = (
   // If showing indicator grids in unified chart, add xAxes for each grid
   if (showAllIndicators && belowGrids.length > 0) {
     belowGrids.forEach((_, index) => {
+      const isLastIndicator = index === belowIndicators.length - 1;
+      const shouldShowTimestamps =
+        isLastIndicator && showTimestampsOnLastIndicator;
+
       xAxes.push({
         type: "category" as const,
         boundaryGap: false,
         axisLine: {
-          show: index === belowGrids.length - 1, // Only show axis line for bottom grid
+          show: shouldShowTimestamps, // Only show axis line when timestamps are shown
           lineStyle: { color: textColor },
         } as any,
         axisTick: {
-          show: index === belowGrids.length - 1, // Only show ticks for bottom grid
+          show: shouldShowTimestamps, // Only show ticks when timestamps are shown
         },
         axisLabel: {
+          show: shouldShowTimestamps, // Only show labels when timestamps are shown
           color: textColor,
           formatter: (value: string) => {
-            // Only show labels for the bottom grid
-            if (index !== belowGrids.length - 1) return "";
+            // Only format timestamps for the last chart when enabled
+            if (!shouldShowTimestamps) return "";
 
-            // Format to show compact date and time
             if (value.includes(" ")) {
               const parts = value.split(" ");
               if (parts.length > 1) {
-                return parts[1]; // Show only time for intraday
+                return parts[1];
               }
             }
 
-            // For daily data, format as MM/DD
             const dateParts = value.split("-");
             if (dateParts.length === 3) {
               return `${dateParts[1]}/${dateParts[2]}`;
@@ -193,7 +207,6 @@ export const generateNiftyChartOptions = (
           },
           rotate: 0,
           fontSize: 10,
-          show: index === belowGrids.length - 1, // Only show labels for bottom grid
         },
         splitLine: { show: false },
         gridIndex: index + 1, // +1 because main chart is index 0
@@ -283,10 +296,25 @@ export const generateNiftyChartOptions = (
       top: "15%",
       height: mainGridHeight, // Adjusted for multiple indicators
       containLabel: true,
+      bottom: showTimestampsOnMain ? "10%" : "0%", // Reserve space for timestamps if showing on main
     },
-    // Add grids for below indicators
-    ...belowGrids,
   ];
+
+  // Add grids for below indicators
+  if (belowGrids.length > 0) {
+    belowGrids.forEach((grid, index) => {
+      const isLastIndicator = index === belowGrids.length - 1;
+      const shouldShowTimestamps =
+        isLastIndicator && showTimestampsOnLastIndicator;
+
+      grids.push({
+        ...grid,
+        containLabel: true,
+        // Reserve space for timestamps only if showing on this grid
+        bottom: shouldShowTimestamps ? "10%" : "0%",
+      });
+    });
+  }
 
   // Create all datazoom controllers
   const dataZooms = [
@@ -304,8 +332,8 @@ export const generateNiftyChartOptions = (
       realtime: true,
       type: "slider",
       xAxisIndex: Array.from({ length: xAxes.length }, (_, i) => i), // Apply to all xAxes
-      bottom: 10,
-      height: 40,
+      bottom: 5,
+      height: 30,
       left: "0%",
       right: "2%",
       start: userDataZoom?.start ?? 60,
@@ -390,61 +418,65 @@ export const generateNiftyChartOptions = (
           (param: any) => param.seriesType === "candlestick"
         );
 
-        if (!candlestickParam) return "";
+        // Initialize tooltip content
+        let tooltipContent = "";
 
-        // Handle both dataset format and regular format
-        let dateTime, open, close, low, high;
+        // Handle the candlestick (main price chart) data
+        if (candlestickParam) {
+          // Handle both dataset format and regular format
+          let dateTime, open, close, low, high;
 
-        if (
-          candlestickParam.value &&
-          typeof candlestickParam.value === "object"
-        ) {
-          // Using dataset format
-          dateTime = candlestickParam.value.time;
-          open = candlestickParam.value.open;
-          close = candlestickParam.value.close;
-          low = candlestickParam.value.low;
-          high = candlestickParam.value.high;
-        } else {
-          // Using regular format
-          dateTime = candlestickParam.axisValue;
-          [open, close, low, high] = candlestickParam.data;
-        }
+          if (
+            candlestickParam.value &&
+            typeof candlestickParam.value === "object"
+          ) {
+            // Using dataset format
+            dateTime = candlestickParam.value.time;
+            open = candlestickParam.value.open;
+            close = candlestickParam.value.close;
+            low = candlestickParam.value.low;
+            high = candlestickParam.value.high;
+          } else {
+            // Using regular format
+            dateTime = candlestickParam.axisValue;
+            [open, close, low, high] = candlestickParam.data;
+          }
 
-        // Format the tooltip content with time
-        let tooltipContent = `<div style="font-weight: bold; margin-bottom: 4px">${dateTime}</div>`;
-        tooltipContent += `<div>Open: ${Number(open).toFixed(2)}</div>`;
-        tooltipContent += `<div>Close: ${Number(close).toFixed(2)}</div>`;
-        tooltipContent += `<div>Low: ${Number(low).toFixed(2)}</div>`;
-        tooltipContent += `<div>High: ${Number(high).toFixed(2)}</div>`;
+          // Format the tooltip content with time (only for candlestick)
+          tooltipContent += `<div style="font-weight: bold; margin-bottom: 4px">${dateTime}</div>`;
+          tooltipContent += `<div>Open: ${Number(open).toFixed(2)}</div>`;
+          tooltipContent += `<div>Close: ${Number(close).toFixed(2)}</div>`;
+          tooltipContent += `<div>Low: ${Number(low).toFixed(2)}</div>`;
+          tooltipContent += `<div>High: ${Number(high).toFixed(2)}</div>`;
 
-        // Add volume if available
-        if (showVolume) {
-          const volumeParam = params.find(
-            (param: any) => param.seriesName === "Volume"
-          );
-          if (volumeParam) {
-            let volume;
-            if (volumeParam.value && typeof volumeParam.value === "object") {
-              volume = volumeParam.value.volume;
-            } else {
-              volume = volumeParam.data;
+          // Add volume if available
+          if (showVolume) {
+            const volumeParam = params.find(
+              (param: any) => param.seriesName === "Volume"
+            );
+            if (volumeParam) {
+              let volume;
+              if (volumeParam.value && typeof volumeParam.value === "object") {
+                volume = volumeParam.value.volume;
+              } else {
+                volume = volumeParam.data;
+              }
+
+              // Add volume to tooltip
+              const volumeColor =
+                chartData[candlestickParam.dataIndex].close >=
+                chartData[candlestickParam.dataIndex].open
+                  ? "rgba(20, 177, 67, 0.8)"
+                  : "rgba(239, 35, 42, 0.8)";
+
+              tooltipContent += `<div style="color:${volumeColor}">Volume: ${Number(
+                volume
+              ).toLocaleString()}</div>`;
             }
-
-            // Add volume to tooltip
-            const volumeColor =
-              chartData[candlestickParam.dataIndex].close >=
-              chartData[candlestickParam.dataIndex].open
-                ? "rgba(20, 177, 67, 0.8)"
-                : "rgba(239, 35, 42, 0.8)";
-
-            tooltipContent += `<div style="color:${volumeColor}">Volume: ${Number(
-              volume
-            ).toLocaleString()}</div>`;
           }
         }
 
-        // Group indicator values by indicator type
+        // Group indicator values by indicator
         const indicatorGroups: { [key: string]: any[] } = {};
         params.forEach((param: any) => {
           if (
@@ -464,6 +496,7 @@ export const generateNiftyChartOptions = (
 
         // Add indicator values grouped by indicator
         Object.entries(indicatorGroups).forEach(([indicatorName, params]) => {
+          // Add indicator name without timestamps
           tooltipContent += `<div style="margin-top: 4px; font-weight: bold">${indicatorName}:</div>`;
 
           // Sort params to ensure consistent order (lower -> middle -> upper)
@@ -477,6 +510,11 @@ export const generateNiftyChartOptions = (
           params.forEach((param: any) => {
             // Get the field name by removing the indicator prefix
             const fieldName = param.seriesName.split("_").slice(1).join("_");
+
+            // Skip any timestamp fields completely
+            if (fieldName === "timestamp" || fieldName === "timestamps") {
+              return;
+            }
 
             // Get proper display name for the field
             let displayName: string;
