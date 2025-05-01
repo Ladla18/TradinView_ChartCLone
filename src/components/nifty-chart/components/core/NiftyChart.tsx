@@ -30,32 +30,41 @@ const NiftyChart: React.FC<NiftyChartProps> = ({
 
   // Update options when data or options change
   useEffect(() => {
-    // Log the first few data points for debugging
-    if (data.length > 0) {
-      console.log("Received data sample:", data.slice(0, 3));
-    }
-
     // Get chart options from the utils
     const baseOptions = generateNiftyChartOptions(data, options);
 
-    // Modify xAxis configuration based on showXAxis prop
+    // Modify xAxis configuration to be fixed at the bottom
     if (baseOptions.xAxis && typeof baseOptions.xAxis === "object") {
       if (Array.isArray(baseOptions.xAxis)) {
         baseOptions.xAxis.forEach((axis) => {
-          axis.axisLabel = { ...axis.axisLabel, show: showXAxis };
+          axis.axisLabel = {
+            ...axis.axisLabel,
+            show: showXAxis,
+          };
+          axis.position = "bottom";
+          axis.axisTick = {
+            ...axis.axisTick,
+            alignWithLabel: true,
+          };
         });
       } else {
         baseOptions.xAxis.axisLabel = {
           ...baseOptions.xAxis.axisLabel,
           show: showXAxis,
         };
+        baseOptions.xAxis.position = "bottom";
+        baseOptions.xAxis.axisTick = {
+          ...baseOptions.xAxis.axisTick,
+          alignWithLabel: true,
+        };
       }
     }
 
-    // Adjust grid bottom margin if x-axis is hidden
+    // Adjust grid to ensure x-axis is visible and fixed at bottom
     if (baseOptions.grid && typeof baseOptions.grid === "object") {
       if (!Array.isArray(baseOptions.grid)) {
         baseOptions.grid.bottom = showXAxis ? "10%" : "0%";
+        baseOptions.grid.containLabel = true;
       }
     }
 
@@ -135,7 +144,7 @@ const NiftyChart: React.FC<NiftyChartProps> = ({
       </div>
     );
   }
-
+  
   return (
     <div className="w-full h-full p-0 m-0">
       <ReactECharts

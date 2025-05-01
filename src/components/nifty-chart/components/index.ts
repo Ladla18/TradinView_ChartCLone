@@ -3,8 +3,8 @@ export { default as NiftyChart } from "./core/NiftyChart";
 export { default as NiftyChartContainer } from "./core/NiftyChartContainer";
 
 // Indicator components
-export { default as IndicatorChart } from "./indicators/IndicatorChart";
-export { default as IndicatorCharts } from "./indicators/IndicatorCharts";
+// export { default as IndicatorChart } from "./indicators/IndicatorChart";
+// export { default as IndicatorCharts } from "./indicators/IndicatorCharts";
 export { default as IndicatorSelector } from "./indicators/IndicatorSelector";
 
 // Layout components
